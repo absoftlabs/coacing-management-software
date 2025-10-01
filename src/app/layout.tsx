@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning data-theme="light">
+    <html lang="en" suppressHydrationWarning data-theme="forest">
       <head>
         {/* Pre-hydration theme script to prevent FOUC */}
         <script
