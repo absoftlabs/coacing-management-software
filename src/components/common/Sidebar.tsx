@@ -6,7 +6,7 @@ function Sidebar() {
     return (
         <div className="p-4 bg-base-200 w-full h-screen">
             <h2 className="text-lg font-bold px-4 bg-neutral p-2 rounded-md text-center uppercase text-primary">Admin Panel</h2>
-            <ul className="menu">
+            <ul className="menu w-full">
                 <li><Link href={'/'}><IconDashboard/> Dashboard</Link></li>
                 <li>
                     <details open>
