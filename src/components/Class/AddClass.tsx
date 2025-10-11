@@ -95,10 +95,10 @@ export default function AddClass() {
 
                     <div className="form-control">
                         <label className="label">
-                            <span className="label-text">Label Name</span>
+                            <span className="label-text">Teacher Name</span>
                         </label>
                         <input
-                            name="label"
+                            name="teacher"
                             className="input input-bordered"
                             placeholder="e.g. Mr. Rahman"
                         />
