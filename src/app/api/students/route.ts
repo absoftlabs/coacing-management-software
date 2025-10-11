@@ -1,13 +1,29 @@
+// src/app/api/students/route.ts
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { ObjectId, type Filter } from "mongodb";
 import type { StudentDoc } from "@/lib/types";
 
-// utility: random 5-digit string with leading zeros
-function random5() {
+// === Utility: random 5-digit string ===
+function random5(): string {
     return String(Math.floor(Math.random() * 100000)).padStart(5, "0");
 }
 
-// GET /api/students?q=&batch=&roll=&suspended=true|false
+// === Local DB type ===
+// API টাইপ (StudentDoc) এ _id সাধারণত string থাকে। DB-তে আমরা _id: ObjectId রাখছি,
+// আর enum-সদৃশ ফিল্ডগুলো (division, schoolSection, gender) DB-শেপে string হিসেবে শিথিল করলাম
+// যাতে টাইপ কনফ্লিক্ট না হয়।
+type StudentDocDb = Omit<
+    StudentDoc,
+    "_id" | "division" | "schoolSection" | "gender"
+> & {
+    _id: ObjectId;
+    division?: string;
+    schoolSection?: string;
+    gender?: string;
+};
+
+// === GET /api/students?q=&batch=&roll=&suspended=true|false ===
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get("q") || "").trim();
@@ -16,14 +32,18 @@ export async function GET(req: Request) {
     const suspended = searchParams.get("suspended");
 
     const db = await getDb();
-    const col = db.collection<StudentDoc>("students");
+    const colRead = db.collection<StudentDocDb>("students");
 
-    const filter: any = {};
+    const filter: Filter<StudentDocDb> = {};
     if (q) {
         const rx = { $regex: q, $options: "i" };
         filter.$or = [
-            { name: rx }, { studentId: rx }, { batch: rx }, { roll: rx },
-            { guardianName: rx }, { guardianPhone: rx }
+            { name: rx },
+            { studentId: rx },
+            { batch: rx },
+            { roll: rx },
+            { guardianName: rx },
+            { guardianPhone: rx },
         ];
     }
     if (batch) filter.batch = batch;
@@ -31,12 +51,18 @@ export async function GET(req: Request) {
     if (suspended === "true") filter.isSuspended = true;
     else if (suspended === "false") filter.isSuspended = { $ne: true };
 
-    const items = await col.find(filter).sort({ createdAt: -1 }).toArray();
-    const rows = items.map((x: any) => ({ ...x, _id: x._id?.toString() }));
+    const items = await colRead.find(filter).sort({ createdAt: -1 }).toArray();
+
+    // API রেসপন্সে _id => string
+    const rows: StudentDoc[] = items.map((x) => ({
+        ...x,
+        _id: x._id.toString(),
+    })) as unknown as StudentDoc[];
+
     return NextResponse.json(rows);
 }
 
-// POST /api/students  -> studentId "PCC-XXXXX" (random, unique)
+// === POST /api/students ===
 export async function POST(req: Request) {
     const body = (await req.json().catch(() => null)) as Partial<StudentDoc> | null;
     if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -49,11 +75,15 @@ export async function POST(req: Request) {
     }
 
     const db = await getDb();
-    // generate unique random ID
+
+    // READ কালেকশন (ObjectId সহ)
+    const colRead = db.collection<StudentDocDb>("students");
+
+    // === Generate unique Student ID ===
     let studentId = "";
     for (let i = 0; i < 10; i++) {
         const candidate = `PCC-${random5()}`;
-        const exists = await db.collection<StudentDoc>("students").findOne({ studentId: candidate });
+        const exists = await colRead.findOne({ studentId: candidate });
         if (!exists) {
             studentId = candidate;
             break;
@@ -64,27 +94,37 @@ export async function POST(req: Request) {
     }
 
     const now = new Date().toISOString();
-    const doc: StudentDoc = {
+
+    // WRITE কালেকশন (insert এর জন্য _id বাদ)
+    const colWrite = db.collection<Omit<StudentDocDb, "_id">>("students");
+
+    // DB-শেপে ডকুমেন্ট তৈরি — division/section/gender কে string হিসেবে নিলাম
+    const docWithoutId: Omit<StudentDocDb, "_id"> = {
         studentId,
         name,
         batch,
         roll,
-        division: body.division as any,
-        schoolName: body.schoolName || "",
-        schoolRoll: body.schoolRoll || "",
-        schoolSection: body.schoolSection as any,
-        address: body.address || "",
-        fatherName: body.fatherName || "",
-        motherName: body.motherName || "",
-        guardianName: body.guardianName || "",
-        guardianPhone: body.guardianPhone || "",
-        gender: body.gender as any,
-        photoUrl: body.photoUrl || "",   // <- accept data URL
+        division: body.division ?? "",
+        schoolName: body.schoolName ?? "",
+        schoolRoll: body.schoolRoll ?? "",
+        schoolSection: body.schoolSection ?? "",
+        address: body.address ?? "",
+        fatherName: body.fatherName ?? "",
+        motherName: body.motherName ?? "",
+        guardianName: body.guardianName ?? "",
+        guardianPhone: body.guardianPhone ?? "",
+        gender: body.gender ?? "",
+        photoUrl: body.photoUrl ?? "",
         isSuspended: !!body.isSuspended,
         createdAt: now,
         updatedAt: now,
     };
 
-    const res = await db.collection<StudentDoc>("students").insertOne(doc as any);
-    return NextResponse.json({ _id: res.insertedId.toString(), ...doc }, { status: 201 });
+    const res = await colWrite.insertOne(docWithoutId);
+
+    // API শেপে রিটার্ন (_id string করে)
+    return NextResponse.json(
+        { _id: res.insertedId.toString(), ...docWithoutId },
+        { status: 201 }
+    );
 }

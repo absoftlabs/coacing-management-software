@@ -1,4 +1,4 @@
-import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconClipboardPlus, IconDashboard, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessageChatbot, IconMessagePlus, IconSchool, IconUserPlus } from '@tabler/icons-react'
+import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconClipboardPlus, IconDashboard, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessageChatbot, IconMessagePlus, IconSchool, IconUserPause, IconUserPlus } from '@tabler/icons-react'
 import Link from 'next/link'
 import React from 'react'
 
@@ -14,6 +14,7 @@ function Sidebar() {
                         <ul>
                             <li><Link href={'/add-student'}><IconUserPlus/> Add Student</Link></li>
                             <li><Link href={'/student-list'}><IconListDetails/> Student List</Link></li>
+                            <li><Link href={'/suspended-students'}><IconUserPause/> Suspended Students</Link></li>
                             <li><Link href={'/students-report'}><IconGraph/> Student Report</Link></li>
                         </ul>
                     </details>
