@@ -13,7 +13,7 @@ function Sidebar() {
                         <summary><IconSchool/> Student Management</summary>
                         <ul>
                             <li><Link href={'/add-student'}><IconUserPlus/> Add Student</Link></li>
-                            <li><Link href={'/students'}><IconListDetails/> Student List</Link></li>
+                            <li><Link href={'/student-list'}><IconListDetails/> Student List</Link></li>
                             <li><Link href={'/students-report'}><IconGraph/> Student Report</Link></li>
                         </ul>
                     </details>
@@ -23,11 +23,12 @@ function Sidebar() {
                         <summary><IconBackpack/> Class Management</summary>
                         <ul>
                             <li><Link href={'/add-class'}><IconBrowserPlus/> Add Class</Link></li>
-                            <li><Link href={'/classes'}><IconAddressBook/> Class List</Link></li>
+                            <li><Link href={'/class-list'}><IconAddressBook/> Class List</Link></li>
                             <li><Link href={'/classes-report'}><IconGraph/> Class Report</Link></li>
                         </ul>
                     </details>
                 </li>
+                <li><Link href={'/batch-list'}><IconBrowserPlus/> Batch</Link></li>
                 <li>
                     <details open>
                         <summary><IconHexagonLetterR/> Result Management</summary>

@@ -1,9 +1,5 @@
-import React from 'react'
+import AddStudent from "@/components/Student/AddStudent";
 
-function page() {
-    return (
-        <div>page</div>
-    )
+export default function Page() {
+    return <AddStudent />;
 }
-
-export default page
