@@ -11,7 +11,7 @@ function oid(id: string) {
 // GET /api/batches/:id
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
     const db = await getDb();
-    const item = await db.collection<BatchDoc>("batches").findOne({ _id: oid(params.id) } as any);
+    const item = await db.collection<BatchDoc>("batches").findOne({ _id: oid(params.id) } as { _id: ObjectId });
     if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ ...item, _id: item._id?.toString() });
 }
@@ -24,11 +24,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const db = await getDb();
     // name unique conflict?
-    const dup = await db.collection<BatchDoc>("batches").findOne({ name, _id: { $ne: oid(params.id) } } as any);
+    const dup = await db.collection<BatchDoc>("batches").findOne({ name, _id: { $ne: oid(params.id) } } as { name: string; _id: { $ne: ObjectId } });
     if (dup) return NextResponse.json({ error: "Batch name already exists" }, { status: 409 });
 
     const res = await db.collection<BatchDoc>("batches").updateOne(
-        { _id: oid(params.id) } as any,
+        { _id: oid(params.id) } as { _id: ObjectId },
         { $set: { name, updatedAt: new Date().toISOString() } }
     );
 
@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 // DELETE /api/batches/:id
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
     const db = await getDb();
-    const res = await db.collection<BatchDoc>("batches").deleteOne({ _id: oid(params.id) } as any);
+    const res = await db.collection<BatchDoc>("batches").deleteOne({ _id: oid(params.id) } as { _id: ObjectId });
     if (!res.deletedCount) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
 }

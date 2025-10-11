@@ -3,10 +3,36 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 type Batch = { _id: string; name: string };
+
 const DIVISIONS = ["Science", "Humanities", "Commerce"] as const;
+type Division = (typeof DIVISIONS)[number];
+
 const SECTIONS = ["A", "B", "C", "D"] as const;
+type Section = (typeof SECTIONS)[number];
+
+const GENDERS = ["Male", "Female"] as const;
+type Gender = (typeof GENDERS)[number];
+
+type StudentPayload = {
+    name: string;
+    batch: string;
+    roll: string;
+    division?: Division;
+    schoolName?: string;
+    schoolRoll?: string;
+    schoolSection?: Section;
+    address?: string;
+    fatherName?: string;
+    motherName?: string;
+    guardianName?: string;
+    guardianPhone?: string;
+    gender?: Gender;
+    photoUrl?: string;
+    isSuspended: boolean;
+};
 
 export default function AddStudent() {
     const router = useRouter();
@@ -16,27 +42,27 @@ export default function AddStudent() {
     const [batches, setBatches] = useState<Batch[]>([]);
     const [loadingBatches, setLoadingBatches] = useState(true);
 
-    // guardian states
     const [guardianMode, setGuardianMode] = useState<"Father" | "Mother" | "Custom">("Father");
     const [fatherName, setFatherName] = useState("");
     const [motherName, setMotherName] = useState("");
     const [customGuardian, setCustomGuardian] = useState("");
 
-    // photo
     const [photoUrl, setPhotoUrl] = useState<string>("");
 
     useEffect(() => {
         (async () => {
             try {
                 const res = await fetch("/api/batches");
-                const data = await res.json();
+                const data: Batch[] = await res.json();
                 setBatches(data);
-            } catch { }
-            setLoadingBatches(false);
+            } catch {
+                // ignore
+            } finally {
+                setLoadingBatches(false);
+            }
         })();
     }, []);
 
-    // derived guardian name (auto from father/mother/custom)
     const guardianName = useMemo(() => {
         if (guardianMode === "Father") return fatherName.trim();
         if (guardianMode === "Mother") return motherName.trim();
@@ -45,7 +71,10 @@ export default function AddStudent() {
 
     function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
-        if (!file) { setPhotoUrl(""); return; }
+        if (!file) {
+            setPhotoUrl("");
+            return;
+        }
         const reader = new FileReader();
         reader.onload = () => setPhotoUrl(String(reader.result || ""));
         reader.readAsDataURL(file);
@@ -55,21 +84,31 @@ export default function AddStudent() {
         setSaving(true);
         setMsg("");
 
-        const payload = {
+        // Safely parse to typed fields (no any)
+        const divisionRaw = String(fd.get("division") || "");
+        const division: Division | undefined = divisionRaw ? (divisionRaw as Division) : undefined;
+
+        const sectionRaw = String(fd.get("schoolSection") || "");
+        const schoolSection: Section | undefined = sectionRaw ? (sectionRaw as Section) : undefined;
+
+        const genderRaw = String(fd.get("gender") || "");
+        const gender: Gender | undefined = genderRaw ? (genderRaw as Gender) : undefined;
+
+        const payload: StudentPayload = {
             name: String(fd.get("name") || "").trim(),
             batch: String(fd.get("batch") || "").trim(),
             roll: String(fd.get("roll") || "").trim(),
-            division: (String(fd.get("division") || "") || undefined) as any,
+            division,
             schoolName: String(fd.get("schoolName") || ""),
             schoolRoll: String(fd.get("schoolRoll") || ""),
-            schoolSection: (String(fd.get("schoolSection") || "") || undefined) as any,
+            schoolSection,
             address: String(fd.get("address") || ""),
             fatherName: fatherName.trim(),
             motherName: motherName.trim(),
             guardianName: guardianName,
             guardianPhone: String(fd.get("guardianPhone") || ""),
-            gender: (String(fd.get("gender") || "") || undefined) as any,
-            photoUrl, // optional
+            gender,
+            photoUrl,
             isSuspended: false,
         };
 
@@ -89,7 +128,7 @@ export default function AddStudent() {
             router.push("/student-list");
             router.refresh();
         } else {
-            const j = await res.json().catch(() => ({}));
+            const j = await res.json().catch(() => ({} as { error?: string }));
             setMsg("❌ " + (j.error || "Failed to add"));
             setSaving(false);
         }
@@ -103,20 +142,26 @@ export default function AddStudent() {
                 <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Name */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">নাম <span className="text-error">*</span></label>
+                        <label className="mb-1 block text-sm font-medium">
+                            নাম <span className="text-error">*</span>
+                        </label>
                         <input name="name" required className="input input-bordered w-full" placeholder="Student name" />
                     </div>
 
                     {/* Batch */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">ব্যাচ <span className="text-error">*</span></label>
+                        <label className="mb-1 block text-sm font-medium">
+                            ব্যাচ <span className="text-error">*</span>
+                        </label>
                         {loadingBatches ? (
                             <div className="skeleton h-10 w-full" />
                         ) : batches.length ? (
                             <select name="batch" required className="select select-bordered w-full">
                                 <option value="">-- Select Batch --</option>
                                 {batches.map((b) => (
-                                    <option key={b._id} value={b.name}>{b.name}</option>
+                                    <option key={b._id} value={b.name}>
+                                        {b.name}
+                                    </option>
                                 ))}
                             </select>
                         ) : (
@@ -126,17 +171,21 @@ export default function AddStudent() {
 
                     {/* Roll */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">রোল <span className="text-error">*</span></label>
+                        <label className="mb-1 block text-sm font-medium">
+                            রোল <span className="text-error">*</span>
+                        </label>
                         <input name="roll" required className="input input-bordered w-full" placeholder="e.g. 101" />
                     </div>
 
                     {/* Division */}
                     <div className="form-control">
                         <label className="mb-1 block text-sm font-medium">ডিভিশন (ঐচ্ছিক)</label>
-                        <select name="division" className="select select-bordered w-full">
+                        <select name="division" className="select select-bordered w-full" defaultValue="">
                             <option value="">-- None --</option>
                             {DIVISIONS.map((d) => (
-                                <option key={d} value={d}>{d}</option>
+                                <option key={d} value={d}>
+                                    {d}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -156,10 +205,12 @@ export default function AddStudent() {
                     {/* School Section */}
                     <div className="form-control">
                         <label className="mb-1 block text-sm font-medium">স্কুল সেকশন</label>
-                        <select name="schoolSection" className="select select-bordered w-full">
+                        <select name="schoolSection" className="select select-bordered w-full" defaultValue="">
                             <option value="">-- None --</option>
                             {SECTIONS.map((s) => (
-                                <option key={s} value={s}>{s}</option>
+                                <option key={s} value={s}>
+                                    {s}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -176,7 +227,13 @@ export default function AddStudent() {
                         <input type="file" accept="image/*" className="file-input file-input-bordered w-full" onChange={onPhotoChange} />
                         {photoUrl && (
                             <div className="mt-2">
-                                <img src={photoUrl} alt="preview" className="mask mask-squircle w-16 h-16 object-cover" />
+                                <Image
+                                    src={photoUrl}
+                                    alt="preview"
+                                    width={64}
+                                    height={64}
+                                    className="mask mask-squircle w-16 h-16 object-cover"
+                                />
                             </div>
                         )}
                     </div>
@@ -187,7 +244,7 @@ export default function AddStudent() {
                         <input
                             className="input input-bordered w-full"
                             value={fatherName}
-                            onChange={(e) => setFatherName(e.target.value)} // live sync
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFatherName(e.target.value)}
                             placeholder="Father's name"
                         />
                     </div>
@@ -198,7 +255,7 @@ export default function AddStudent() {
                         <input
                             className="input input-bordered w-full"
                             value={motherName}
-                            onChange={(e) => setMotherName(e.target.value)} // live sync
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMotherName(e.target.value)}
                             placeholder="Mother's name"
                         />
                     </div>
@@ -209,7 +266,9 @@ export default function AddStudent() {
                         <select
                             className="select select-bordered w-full"
                             value={guardianMode}
-                            onChange={(e) => setGuardianMode(e.target.value as any)}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                setGuardianMode(e.target.value as "Father" | "Mother" | "Custom")
+                            }
                         >
                             <option value="Father">Father {fatherName ? `(${fatherName})` : ""}</option>
                             <option value="Mother">Mother {motherName ? `(${motherName})` : ""}</option>
@@ -230,7 +289,7 @@ export default function AddStudent() {
                             <input
                                 className="input input-bordered w-full"
                                 value={customGuardian}
-                                onChange={(e) => setCustomGuardian(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomGuardian(e.target.value)}
                                 placeholder="Guardian name"
                             />
                         </div>
@@ -248,16 +307,21 @@ export default function AddStudent() {
                     {/* Gender */}
                     <div className="form-control md:max-w-xs">
                         <label className="mb-1 block text-sm font-medium">লিঙ্গ</label>
-                        <select name="gender" className="select select-bordered w-full">
+                        <select name="gender" className="select select-bordered w-full" defaultValue="">
                             <option value="">-- Select --</option>
-                            <option>Male</option>
-                            <option>Female</option>
+                            {GENDERS.map((g) => (
+                                <option key={g} value={g}>
+                                    {g}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
-                    {/* Actions */}
-                    <div className="md:col-span-2 flex justify-end gap-2 pt-2">
-                        <a href="/student-list" className="btn btn-ghost">Cancel</a>
+                    {/* actions */}
+                    <div className="md:col-span-2 flex justify-end gap-2">
+                        <a href="/student-list" className="btn btn-ghost">
+                            Cancel
+                        </a>
                         <button className="btn btn-primary" disabled={saving}>
                             {saving ? "Saving..." : "Save Student"}
                         </button>

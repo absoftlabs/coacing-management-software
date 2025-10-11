@@ -3,20 +3,45 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 type Batch = { _id: string; name: string };
-type Item = any;
 
 const DIVISIONS = ["Science", "Humanities", "Commerce"] as const;
-const SECTIONS = ["A", "B", "C", "D"] as const;
+type Division = (typeof DIVISIONS)[number];
 
-export default function EditStudent({ item }: { item: Item }) {
+const SECTIONS = ["A", "B", "C", "D"] as const;
+type Section = (typeof SECTIONS)[number];
+
+const GENDERS = ["Male", "Female"] as const;
+type Gender = (typeof GENDERS)[number];
+
+type StudentItem = {
+    _id: string;
+    studentId: string;
+    name: string;
+    batch: string;
+    roll: string;
+    division?: Division;
+    schoolName?: string;
+    schoolRoll?: string;
+    schoolSection?: Section;
+    address?: string;
+    fatherName?: string;
+    motherName?: string;
+    guardianName?: string;
+    guardianPhone?: string;
+    gender?: Gender;
+    photoUrl?: string;
+    isSuspended?: boolean;
+};
+
+export default function EditStudent({ item }: { item: StudentItem }) {
     const router = useRouter();
     const [msg, setMsg] = useState("");
     const [loading, setLoading] = useState(false);
     const [batches, setBatches] = useState<Batch[]>([]);
 
-    // guardian states (keep labels on top; auto-fill like Add form)
     const [guardianMode, setGuardianMode] = useState<"Father" | "Mother" | "Custom">(() => {
         if (item.guardianName && item.guardianName === item.fatherName) return "Father";
         if (item.guardianName && item.guardianName === item.motherName) return "Mother";
@@ -25,10 +50,9 @@ export default function EditStudent({ item }: { item: Item }) {
     const [fatherName, setFatherName] = useState(item.fatherName || "");
     const [motherName, setMotherName] = useState(item.motherName || "");
     const [customGuardian, setCustomGuardian] = useState(
-        () => (guardianMode === "Custom" ? item.guardianName || "" : "")
+        (guardianMode === "Custom" ? item.guardianName : "") || ""
     );
 
-    // photo (optional) — keep consistent with Add form
     const [photoUrl, setPhotoUrl] = useState<string>(item.photoUrl || "");
 
     const resolvedGuardianName = useMemo(() => {
@@ -41,9 +65,11 @@ export default function EditStudent({ item }: { item: Item }) {
         (async () => {
             try {
                 const res = await fetch("/api/batches");
-                const data = await res.json();
+                const data: Batch[] = await res.json();
                 setBatches(data);
-            } catch { }
+            } catch {
+                // ignore
+            }
         })();
     }, []);
 
@@ -59,21 +85,30 @@ export default function EditStudent({ item }: { item: Item }) {
         setLoading(true);
         setMsg("");
 
-        const payload = {
+        const divisionRaw = String(fd.get("division") || "");
+        const division: Division | undefined = divisionRaw ? (divisionRaw as Division) : undefined;
+
+        const sectionRaw = String(fd.get("schoolSection") || "");
+        const schoolSection: Section | undefined = sectionRaw ? (sectionRaw as Section) : undefined;
+
+        const genderRaw = String(fd.get("gender") || "");
+        const gender: Gender | undefined = genderRaw ? (genderRaw as Gender) : undefined;
+
+        const payload: Partial<StudentItem> = {
             name: String(fd.get("name") || "").trim(),
             batch: String(fd.get("batch") || "").trim(),
             roll: String(fd.get("roll") || "").trim(),
-            division: (String(fd.get("division") || "") || undefined) as any,
+            division,
             schoolName: String(fd.get("schoolName") || ""),
             schoolRoll: String(fd.get("schoolRoll") || ""),
-            schoolSection: (String(fd.get("schoolSection") || "") || undefined) as any,
+            schoolSection,
             address: String(fd.get("address") || ""),
             fatherName: fatherName.trim(),
             motherName: motherName.trim(),
             guardianName: resolvedGuardianName,
             guardianPhone: String(fd.get("guardianPhone") || ""),
-            gender: (String(fd.get("gender") || "") || undefined) as any,
-            photoUrl, // keep/update photo
+            gender,
+            photoUrl,
         };
 
         const res = await fetch(`/api/students/${item._id}`, {
@@ -87,7 +122,7 @@ export default function EditStudent({ item }: { item: Item }) {
             router.push("/student-list");
             router.refresh();
         } else {
-            const j = await res.json().catch(() => ({}));
+            const j = await res.json().catch(() => ({} as { error?: string }));
             setMsg("❌ " + (j.error || "Failed to update"));
         }
         setLoading(false);
@@ -114,7 +149,9 @@ export default function EditStudent({ item }: { item: Item }) {
                         <select name="batch" defaultValue={item.batch} required className="select select-bordered w-full">
                             <option value="">-- Select Batch --</option>
                             {batches.map((b) => (
-                                <option key={b._id} value={b.name}>{b.name}</option>
+                                <option key={b._id} value={b.name}>
+                                    {b.name}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -131,7 +168,9 @@ export default function EditStudent({ item }: { item: Item }) {
                         <select name="division" defaultValue={item.division || ""} className="select select-bordered w-full">
                             <option value="">-- None --</option>
                             {DIVISIONS.map((d) => (
-                                <option key={d} value={d}>{d}</option>
+                                <option key={d} value={d}>
+                                    {d}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -154,7 +193,9 @@ export default function EditStudent({ item }: { item: Item }) {
                         <select name="schoolSection" defaultValue={item.schoolSection || ""} className="select select-bordered w-full">
                             <option value="">-- None --</option>
                             {SECTIONS.map((s) => (
-                                <option key={s} value={s}>{s}</option>
+                                <option key={s} value={s}>
+                                    {s}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -162,7 +203,7 @@ export default function EditStudent({ item }: { item: Item }) {
                     {/* Address (full) */}
                     <div className="form-control md:col-span-2">
                         <label className="mb-1 block text-sm font-medium">ঠিকানা</label>
-                        <textarea name="address" defaultValue={item.address || ""} className="textarea textarea-bordered w-full"></textarea>
+                        <textarea name="address" defaultValue={item.address || ""} className="textarea textarea-bordered w-full" />
                     </div>
 
                     {/* Photo (optional) */}
@@ -171,7 +212,13 @@ export default function EditStudent({ item }: { item: Item }) {
                         <input type="file" accept="image/*" className="file-input file-input-bordered w-full" onChange={onPhotoChange} />
                         {photoUrl && (
                             <div className="mt-2">
-                                <img src={photoUrl} alt="preview" className="mask mask-squircle w-16 h-16 object-cover" />
+                                <Image
+                                    src={photoUrl}
+                                    alt="preview"
+                                    width={64}
+                                    height={64}
+                                    className="mask mask-squircle w-16 h-16 object-cover"
+                                />
                             </div>
                         )}
                     </div>
@@ -182,7 +229,7 @@ export default function EditStudent({ item }: { item: Item }) {
                         <input
                             className="input input-bordered w-full"
                             value={fatherName}
-                            onChange={(e) => setFatherName(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFatherName(e.target.value)}
                         />
                     </div>
 
@@ -192,7 +239,7 @@ export default function EditStudent({ item }: { item: Item }) {
                         <input
                             className="input input-bordered w-full"
                             value={motherName}
-                            onChange={(e) => setMotherName(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMotherName(e.target.value)}
                         />
                     </div>
 
@@ -202,7 +249,9 @@ export default function EditStudent({ item }: { item: Item }) {
                         <select
                             className="select select-bordered w-full"
                             value={guardianMode}
-                            onChange={(e) => setGuardianMode(e.target.value as any)}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                setGuardianMode(e.target.value as "Father" | "Mother" | "Custom")
+                            }
                         >
                             <option value="Father">Father {fatherName ? `(${fatherName})` : ""}</option>
                             <option value="Mother">Mother {motherName ? `(${motherName})` : ""}</option>
@@ -217,7 +266,7 @@ export default function EditStudent({ item }: { item: Item }) {
                             <input
                                 className="input input-bordered w-full"
                                 value={customGuardian}
-                                onChange={(e) => setCustomGuardian(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomGuardian(e.target.value)}
                             />
                         </div>
                     )}
@@ -233,12 +282,15 @@ export default function EditStudent({ item }: { item: Item }) {
                         <label className="mb-1 block text-sm font-medium">লিঙ্গ</label>
                         <select name="gender" defaultValue={item.gender || ""} className="select select-bordered w-full">
                             <option value="">-- Select --</option>
-                            <option>Male</option>
-                            <option>Female</option>
+                            {GENDERS.map((g) => (
+                                <option key={g} value={g}>
+                                    {g}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
-                    {/* Derived guardian name (read-only, for clarity) */}
+                    {/* Derived guardian name (read-only) */}
                     <div className="form-control md:col-span-2">
                         <label className="mb-1 block text-sm font-medium">অটো-ফিল্ড গার্ডিয়ান নাম</label>
                         <input className="input input-bordered w-full" value={resolvedGuardianName} readOnly />
@@ -246,8 +298,12 @@ export default function EditStudent({ item }: { item: Item }) {
                 </div>
 
                 <div className="card-actions justify-end p-6 pt-0">
-                    <a href="/student-list" className="btn btn-ghost">Cancel</a>
-                    <button className="btn btn-primary" disabled={loading}>{loading ? "Saving..." : "Update"}</button>
+                    <a href="/student-list" className="btn btn-ghost">
+                        Cancel
+                    </a>
+                    <button className="btn btn-primary" disabled={loading}>
+                        {loading ? "Saving..." : "Update"}
+                    </button>
                 </div>
 
                 {msg && <div className="px-6 pb-6 -mt-2 text-sm">{msg}</div>}
