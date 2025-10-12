@@ -1,35 +1,36 @@
 // src/app/batch-list/page.tsx
-import BatchList from "@/components/Batch/BatchList";
-import { getBaseUrl } from "@/lib/baseUrl";
+import BatchList, { type BatchRow } from "@/components/Batch/BatchList";
+import { api } from "@/lib/baseUrl";
 
-// --- Shared Types (BatchList.tsx এর সাথে মিল রেখে) ---
-type Batch = { _id: string; name: string; createdAt?: string; updatedAt?: string };
-type ClassItem = { _id: string; name: string; code?: string; batch: string; isActive?: boolean };
-type StudentItem = { _id: string; batch: string; isSuspended?: boolean };
-
-async function fetchJSON<T>(path: string): Promise<T> {
-    const base = getBaseUrl();
-    const res = await fetch(`${base}${path}`, { cache: "no-store" }).catch(() => null);
-    if (!res || !res.ok) return [] as unknown as T;
-    const data = (await res.json()) as T;
-    return data;
+/** /api/batches => BatchRow[] */
+async function fetchBatches(): Promise<BatchRow[]> {
+    try {
+        const res = await api("/api/batches", { cache: "no-store" });
+        if (!res.ok) return [];
+        const data = (await res.json()) as Array<{
+            _id: string;
+            name: string;
+            totalClass: number;
+            totalStudent: number;
+        }>;
+        // ডাটা স্যানিটি: সংখ্যা না হলে 0 করে দিন
+        return data.map((x) => ({
+            _id: String(x._id),
+            name: String(x.name),
+            totalClass: Number.isFinite(x.totalClass) ? x.totalClass : 0,
+            totalStudent: Number.isFinite(x.totalStudent) ? x.totalStudent : 0,
+        }));
+    } catch {
+        return [];
+    }
 }
 
 export default async function Page() {
-    const [initialBatches, initialClasses, initialStudents] = await Promise.all([
-        fetchJSON<Batch[]>("/api/batches"),
-        fetchJSON<ClassItem[]>("/api/classes"),
-        fetchJSON<StudentItem[]>("/api/students"),
-    ]);
-
+    const rows = await fetchBatches();
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-semibold">Batch List</h1>
-            <BatchList
-                initialBatches={initialBatches}
-                initialClasses={initialClasses}
-                initialStudents={initialStudents}
-            />
+            <BatchList rows={rows} />
         </div>
     );
 }
