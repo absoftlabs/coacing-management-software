@@ -34,6 +34,8 @@ type StudentItem = {
     gender?: Gender;
     photoUrl?: string;
     isSuspended?: boolean;
+    birthDate?: string;
+    courseFee?: number;
 };
 
 export default function EditStudent({ item }: { item: StudentItem }) {
@@ -109,6 +111,8 @@ export default function EditStudent({ item }: { item: StudentItem }) {
             guardianPhone: String(fd.get("guardianPhone") || ""),
             gender,
             photoUrl,
+            birthDate: String(fd.get("birthDate") || ""),
+            courseFee: Number(fd.get("courseFee") || 0) || undefined,
         };
 
         const res = await fetch(`/api/students/${item._id}`, {

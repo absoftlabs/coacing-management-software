@@ -35,6 +35,7 @@ function Sidebar() {
                         <summary><IconHexagonLetterR/> Result Management</summary>
                         <ul>
                             <li><Link href={'/add-result'}><IconClipboardPlus/> Add Result</Link></li>
+                            <li><Link href={'/result-list'}><IconClipboardPlus/> Result List</Link></li>
                             <li><Link href={'/result-parameters'}><IconApps/> Result Parameters</Link></li>
                             <li><Link href={'/find-result'}><IconAdjustmentsSearch/> Find Result</Link></li>
                             <li><Link href={'/results-report'}><IconGraph/> Result Report</Link></li>

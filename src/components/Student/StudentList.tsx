@@ -21,6 +21,8 @@ export type Row = {
     guardianPhone?: string;
     gender?: string;
     photoUrl?: string;      // base64 data URL বা remote url
+    birthDate?: string;
+    courseFee?: number;
     isSuspended?: boolean;
     createdAt?: string;
     updatedAt?: string;

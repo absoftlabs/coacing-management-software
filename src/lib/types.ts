@@ -1,53 +1,84 @@
-// lib/types.ts
+// src/lib/types.ts
+
+// Batch
+export type BatchDoc = {
+    _id?: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+// Class
 export type ClassDoc = {
     _id?: string;
     name: string;
     code: string;
     teacher?: string;
-    batch?: string;       // <- renamed from room
+    batch?: string;
     days?: string[];
     isActive?: boolean;
-    createdAt?: string;
-    updatedAt?: string;
+    createdAt: string;
+    updatedAt: string;
 };
 
+// Student
+export type Division = "Science" | "Humanities" | "Commerce";
+export type Section = "A" | "B" | "C" | "D";
+export type Gender = "Male" | "Female";
 
-// lib/types.ts
-export type BatchDoc = {
-    _id?: string;
-    name: string;        // unique
-    createdAt?: string;
-    updatedAt?: string;
-};
-
-export type BatchRow = {
-    _id: string;
-    name: string;
-    totalClass: number;
-    totalStudent: number;
-};
-
-// lib/types.ts
 export type StudentDoc = {
     _id?: string;
-    studentId: string;       // e.g. "PCC-12345" (random 5 digits)
+    studentId: string; // PCC-xxxxx
     name: string;
     batch: string;
     roll: string;
-    division?: "Science" | "Humanities" | "Commerce";
+
+    division?: Division;
     schoolName?: string;
     schoolRoll?: string;
-    schoolSection?: "A" | "B" | "C" | "D";
+    schoolSection?: Section;
+
     address?: string;
+
     fatherName?: string;
     motherName?: string;
     guardianName?: string;
     guardianPhone?: string;
-    gender?: "Male" | "Female";
-    photoUrl?: string;       // <- NEW (optional data URL)
+    gender?: Gender;
+
+    photoUrl?: string;
     isSuspended?: boolean;
-    createdAt?: string;
-    updatedAt?: string;
+
+    // ✅ new fields
+    birthDate?: string;   // yyyy-mm-dd
+    courseFee?: number;   // number (tk)
+
+    createdAt: string;
+    updatedAt: string;
 };
 
+
+// ====== Result ======
+export type ResultDoc = {
+    _id?: string;
+
+    batch: string;              // batch name
+    studentId: string;          // PCC-xxxxx
+    studentName: string;        // denormalized for quick listing
+    className: string;          // class/subject display name
+    resultType: string;         // e.g. Class Test / Weekly Test / Custom etc.
+    examDate?: string;          // yyyy-mm-dd
+
+    mcqTotal?: number;
+    mcqGain?: number;
+    quesTotal?: number;
+    quesGain?: number;
+
+    // convenience (server-computed)
+    totalMarks?: number;        // (mcqTotal || 0) + (quesTotal || 0)
+    totalGain?: number;         // (mcqGain || 0) + (quesGain || 0)
+
+    createdAt: string;
+    updatedAt: string;
+};
 

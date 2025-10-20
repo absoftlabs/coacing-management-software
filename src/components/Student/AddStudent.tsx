@@ -32,6 +32,8 @@ type StudentPayload = {
     gender?: Gender;
     photoUrl?: string;
     isSuspended: boolean;
+    birthDate: string;
+    courseFee?: number;
 };
 
 export default function AddStudent() {
@@ -110,6 +112,8 @@ export default function AddStudent() {
             gender,
             photoUrl,
             isSuspended: false,
+            birthDate: String(fd.get("birthDate") || ""),
+            courseFee: Number(fd.get("courseFee") || 0) || undefined,
         };
 
         if (!payload.name || !payload.batch || !payload.roll) {
@@ -143,7 +147,7 @@ export default function AddStudent() {
                     {/* Name */}
                     <div className="form-control">
                         <label className="mb-1 block text-sm font-medium">
-                            নাম <span className="text-error">*</span>
+                            Name <span className="text-error">*</span>
                         </label>
                         <input name="name" required className="input input-bordered w-full" placeholder="Student name" />
                     </div>
@@ -151,7 +155,7 @@ export default function AddStudent() {
                     {/* Batch */}
                     <div className="form-control">
                         <label className="mb-1 block text-sm font-medium">
-                            ব্যাচ <span className="text-error">*</span>
+                            Batch <span className="text-error">*</span>
                         </label>
                         {loadingBatches ? (
                             <div className="skeleton h-10 w-full" />
@@ -172,14 +176,14 @@ export default function AddStudent() {
                     {/* Roll */}
                     <div className="form-control">
                         <label className="mb-1 block text-sm font-medium">
-                            রোল <span className="text-error">*</span>
+                            Roll <span className="text-error">*</span>
                         </label>
                         <input name="roll" required className="input input-bordered w-full" placeholder="e.g. 101" />
                     </div>
 
                     {/* Division */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">ডিভিশন (ঐচ্ছিক)</label>
+                        <label className="mb-1 block text-sm font-medium">Group</label>
                         <select name="division" className="select select-bordered w-full" defaultValue="">
                             <option value="">-- None --</option>
                             {DIVISIONS.map((d) => (
@@ -191,20 +195,24 @@ export default function AddStudent() {
                     </div>
 
                     {/* School Name (full) */}
-                    <div className="form-control md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium">স্কুলের নাম</label>
+                    <div className="form-control md:col-span-1">
+                        <label className="mb-1 block text-sm font-medium">Birth Date</label>
+                        <input name="birthDate" type="date" className="input input-bordered w-full" />
+                    </div>
+                    <div className="form-control md:col-span-1">
+                        <label className="mb-1 block text-sm font-medium">School Name</label>
                         <input name="schoolName" className="input input-bordered w-full" placeholder="e.g. City High School" />
                     </div>
 
                     {/* School Roll */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">স্কুল রোল</label>
+                        <label className="mb-1 block text-sm font-medium">School Roll</label>
                         <input name="schoolRoll" className="input input-bordered w-full" placeholder="e.g. 5501" />
                     </div>
 
                     {/* School Section */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">স্কুল সেকশন</label>
+                        <label className="mb-1 block text-sm font-medium">School Section</label>
                         <select name="schoolSection" className="select select-bordered w-full" defaultValue="">
                             <option value="">-- None --</option>
                             {SECTIONS.map((s) => (
@@ -217,13 +225,13 @@ export default function AddStudent() {
 
                     {/* Address (full) */}
                     <div className="form-control md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium">ঠিকানা</label>
+                        <label className="mb-1 block text-sm font-medium">Address</label>
                         <textarea name="address" className="textarea textarea-bordered w-full" placeholder="House, Road, Area, City" />
                     </div>
 
                     {/* Photo (optional) */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">ছাত্রের ছবি (ঐচ্ছিক)</label>
+                        <label className="mb-1 block text-sm font-medium">Student Photo</label>
                         <input type="file" accept="image/*" className="file-input file-input-bordered w-full" onChange={onPhotoChange} />
                         {photoUrl && (
                             <div className="mt-2">
@@ -240,7 +248,7 @@ export default function AddStudent() {
 
                     {/* Father's name */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">পিতার নাম</label>
+                        <label className="mb-1 block text-sm font-medium">Father&apos;s Name</label>
                         <input
                             className="input input-bordered w-full"
                             value={fatherName}
@@ -251,7 +259,7 @@ export default function AddStudent() {
 
                     {/* Mother's name */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">মাতার নাম</label>
+                        <label className="mb-1 block text-sm font-medium">Mother&apos;s Name</label>
                         <input
                             className="input input-bordered w-full"
                             value={motherName}
@@ -262,7 +270,7 @@ export default function AddStudent() {
 
                     {/* Guardian selector */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">অভিভাবক</label>
+                        <label className="mb-1 block text-sm font-medium">Guardian</label>
                         <select
                             className="select select-bordered w-full"
                             value={guardianMode}
@@ -278,14 +286,18 @@ export default function AddStudent() {
 
                     {/* Guardian Phone */}
                     <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">অভিভাবকের ফোন</label>
+                        <label className="mb-1 block text-sm font-medium">Guardian Phone</label>
                         <input name="guardianPhone" className="input input-bordered w-full" placeholder="01XXXXXXXXX" />
+                    </div>
+                    <div className="form-control">
+                        <label className="mb-1 block text-sm font-medium">Course Fee</label>
+                        <input name="courseFee" className="input input-bordered w-full" placeholder="Course Fee" />
                     </div>
 
                     {/* Custom Guardian (only when chosen) */}
                     {guardianMode === "Custom" && (
                         <div className="form-control md:col-span-2">
-                            <label className="mb-1 block text-sm font-medium">কাস্টম অভিভাবকের নাম</label>
+                            <label className="mb-1 block text-sm font-medium">Custom Guardian Name</label>
                             <input
                                 className="input input-bordered w-full"
                                 value={customGuardian}
@@ -297,16 +309,16 @@ export default function AddStudent() {
 
                     {/* Derived guardian name (read-only) */}
                     <div className="form-control md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium">অটো-ফিল্ড গার্ডিয়ান নাম</label>
+                        <label className="mb-1 block text-sm font-medium">Auto-filled Guardian Name</label>
                         <input className="input input-bordered w-full" value={guardianName} readOnly />
                         <span className="text-xs opacity-60 mt-1">
-                            পিতা/মাতার নাম টাইপ করলে বা Custom দিলে এখানে স্বয়ংক্রিয়ভাবে দেখাবে।
+                            Typing the father&apos;s/mother&apos;s name or selecting Custom will automatically show here.
                         </span>
                     </div>
 
                     {/* Gender */}
                     <div className="form-control md:max-w-xs">
-                        <label className="mb-1 block text-sm font-medium">লিঙ্গ</label>
+                        <label className="mb-1 block text-sm font-medium">Gender</label>
                         <select name="gender" className="select select-bordered w-full" defaultValue="">
                             <option value="">-- Select --</option>
                             {GENDERS.map((g) => (

@@ -1,8 +1,11 @@
+import AddResult from '@/components/Result/AddResult'
 import React from 'react'
 
 function page() {
     return (
-        <div>page p</div>
+        <div>
+            <AddResult/>
+        </div>
     )
 }
 
