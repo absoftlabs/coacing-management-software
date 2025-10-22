@@ -1,4 +1,4 @@
-import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconChalkboardTeacher, IconClipboardPlus, IconDashboard, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessageChatbot, IconMessagePlus, IconPlayerPause, IconSchool, IconSquarePlus, IconUserPause, IconUserPlus } from '@tabler/icons-react'
+import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconChalkboardTeacher, IconClipboardPlus, IconCurrencyTaka, IconDashboard, IconFileCheck, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessageChatbot, IconMessagePlus, IconPlayerPause, IconSchool, IconSquarePlus, IconUserPause, IconUserPlus, IconWallet } from '@tabler/icons-react'
 import Link from 'next/link'
 import React from 'react'
 
@@ -9,7 +9,7 @@ function Sidebar() {
             <ul className="menu w-full">
                 <li><Link href={'/'}><IconDashboard/> Dashboard</Link></li>
                 <li>
-                    <details open>
+                    <details>
                         <summary><IconSchool/> Student Management</summary>
                         <ul>
                             <li><Link href={'/add-student'}><IconUserPlus/> Add Student</Link></li>
@@ -20,7 +20,7 @@ function Sidebar() {
                     </details>
                 </li>
                 <li>
-                    <details open>
+                    <details>
                         <summary><IconChalkboardTeacher/> Teacher Management</summary>
                         <ul>
                             <li><Link href={'/add-teacher'}><IconSquarePlus/> Add Teacher</Link></li>
@@ -31,7 +31,7 @@ function Sidebar() {
                     </details>
                 </li>
                 <li>
-                    <details open>
+                    <details>
                         <summary><IconBackpack/> Class Management</summary>
                         <ul>
                             <li><Link href={'/add-class'}><IconBrowserPlus/> Add Class</Link></li>
@@ -42,7 +42,7 @@ function Sidebar() {
                 </li>
                 <li><Link href={'/batch-list'}><IconBrowserPlus/> Batch</Link></li>
                 <li>
-                    <details open>
+                    <details>
                         <summary><IconHexagonLetterR/> Result Management</summary>
                         <ul>
                             <li><Link href={'/add-result'}><IconClipboardPlus/> Add Result</Link></li>
@@ -54,7 +54,16 @@ function Sidebar() {
                     </details>
                 </li>
                 <li>
-                    <details open>
+                    <details>
+                        <summary><IconCurrencyTaka/> Fees Management</summary>
+                        <ul>
+                            <li><Link href={'/add-fees'}><IconWallet/> Collect Fees</Link></li>
+                            <li><Link href={'/fees-list'}><IconFileCheck/> Fees List</Link></li>
+                        </ul>
+                    </details>
+                </li>
+                <li>
+                    <details>
                         <summary><IconMessage2/> SMS Management</summary>
                         <ul>
                             <li><Link href={'/sms-templates'}><IconMessagePlus/> Add SMS Template</Link></li>

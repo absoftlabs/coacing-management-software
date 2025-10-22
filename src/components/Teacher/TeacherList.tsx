@@ -64,7 +64,7 @@ export default function TeacherList({
     return (
         <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
-                <div className="flex items-end justify-between gap-3 flex-col lg:flex-row">
+                <div className="flex items-center gap-3 justify-between bg-base-200 rounded p-4">
                     <input
                         className="input input-bordered"
                         placeholder="Search by name/subject"

@@ -99,3 +99,14 @@ export type TeacherDoc = {
     createdAt: string;
     updatedAt: string;
 };
+
+export type FeeDoc = {
+    _id?: string;
+    studentId: string;
+    studentName: string;
+    amount: number;
+    depositBy: string;      // from parent/family dropdown
+    receivedBy: string;     // text input
+    createdAt: string;
+    updatedAt: string;
+};
