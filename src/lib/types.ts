@@ -58,27 +58,32 @@ export type StudentDoc = {
 };
 
 
-// ====== Result ======
-export type ResultDoc = {
-    _id?: string;
+// src/lib/types.ts
 
-    batch: string;              // batch name
-    studentId: string;          // PCC-xxxxx
-    studentName: string;        // denormalized for quick listing
-    className: string;          // class/subject display name
-    resultType: string;         // e.g. Class Test / Weekly Test / Custom etc.
-    examDate?: string;          // yyyy-mm-dd
+export type ResultType = "Class Test" | "Weekly Test" | "Quiz Test" | "Model Test" | "Custom";
 
-    mcqTotal?: number;
-    mcqGain?: number;
-    quesTotal?: number;
-    quesGain?: number;
+export interface SubjectMark {
+    className: string;
+    mcqTotal?: number;  // e.g., 50
+    mcqGain?: number;   // e.g., 40
+    quesTotal?: number; // e.g., 50
+    quesGain?: number;  // e.g., 35
+    totalMarks?: number; // derived
+    totalGain?: number;  // derived
+}
 
-    // convenience (server-computed)
-    totalMarks?: number;        // (mcqTotal || 0) + (quesTotal || 0)
-    totalGain?: number;         // (mcqGain || 0) + (quesGain || 0)
+export interface ResultDoc {
+    _id?: string;       // client-facing id (string)
+    batch: string;
+    studentId: string;
+    studentName: string;
+    resultType: ResultType;
+    examDate?: string;  // ISO string
+    subjects: SubjectMark[]; // <-- multi-subject here
+    totalMarks?: number; // sum over subjects
+    totalGain?: number;  // sum over subjects
+    createdAt?: string;
+    updatedAt?: string;
+}
 
-    createdAt: string;
-    updatedAt: string;
-};
 

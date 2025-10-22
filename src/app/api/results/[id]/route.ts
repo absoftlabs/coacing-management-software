@@ -2,7 +2,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { getDb } from "@/lib/mongodb";
 import { ObjectId, type Filter, type UpdateFilter } from "mongodb";
-import type { ResultDoc } from "@/lib/types";
+import type { ResultDoc, SubjectMark, ResultType } from "@/lib/types";
 
 type ResultDocDb = Omit<ResultDoc, "_id"> & { _id: ObjectId };
 
@@ -17,6 +17,36 @@ function toNum(v: unknown): number | undefined {
     return Number.isFinite(n) ? n : undefined;
 }
 
+function normalizeSubject(input: unknown): SubjectMark | null {
+    if (typeof input !== "object" || input === null) return null;
+    const o = input as Record<string, unknown>;
+
+    const className =
+        typeof o.className === "string" ? o.className.trim() : "";
+    if (!className) return null;
+
+    const mcqTotal = toNum(o.mcqTotal) ?? 0;
+    const mcqGain = toNum(o.mcqGain) ?? 0;
+    const quesTotal = toNum(o.quesTotal) ?? 0;
+    const quesGain = toNum(o.quesGain) ?? 0;
+
+    return {
+        className,
+        mcqTotal,
+        mcqGain,
+        quesTotal,
+        quesGain,
+        totalMarks: mcqTotal + quesTotal,
+        totalGain: mcqGain + quesGain,
+    };
+}
+
+function computeTotals(subjects: SubjectMark[]): { totalMarks: number; totalGain: number } {
+    const totalMarks = subjects.reduce((acc, s) => acc + (s.totalMarks ?? 0), 0);
+    const totalGain = subjects.reduce((acc, s) => acc + (s.totalGain ?? 0), 0);
+    return { totalMarks, totalGain };
+}
+
 // GET /api/results/:id
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     const { id } = await ctx.params;
@@ -28,81 +58,50 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 // PATCH /api/results/:id
+// Updatable fields: batch, studentId, studentName, resultType, examDate, subjects[]
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     const { id } = await ctx.params;
     const body = (await req.json().catch(() => null)) as Partial<ResultDoc> | null;
     if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
-    // আপডেটেবল ফিল্ডগুলোকে টাইপ-সেফভাবে ধরতে আলাদা টাইপ
     type Updatable = Pick<
         ResultDocDb,
-        | "batch"
-        | "studentId"
-        | "studentName"
-        | "className"
-        | "resultType"
-        | "examDate"
-        | "mcqTotal"
-        | "mcqGain"
-        | "quesTotal"
-        | "quesGain"
-        | "totalMarks"
-        | "totalGain"
-        | "updatedAt"
+        "batch" | "studentId" | "studentName" | "resultType" | "examDate" | "subjects" | "totalMarks" | "totalGain" | "updatedAt"
     >;
 
     const set: Partial<Updatable> = { updatedAt: new Date().toISOString() };
 
-    // string ফিল্ডগুলো (undefined হলে skip)
-    if (typeof body.batch === "string") set.batch = body.batch;
-    if (typeof body.studentId === "string") set.studentId = body.studentId;
-    if (typeof body.studentName === "string") set.studentName = body.studentName;
-    if (typeof body.className === "string") set.className = body.className;
-    if (typeof body.resultType === "string") set.resultType = body.resultType;
+    if (typeof body.batch === "string") set.batch = body.batch.trim();
+    if (typeof body.studentId === "string") set.studentId = body.studentId.trim();
+    if (typeof body.studentName === "string") set.studentName = body.studentName.trim();
+    if (typeof body.resultType === "string") set.resultType = body.resultType as ResultType;
     if (typeof body.examDate === "string") set.examDate = body.examDate;
 
-    // numeric ফিল্ডগুলো (toNum দিয়ে coercion)
-    const mt = toNum(body.mcqTotal);
-    const mg = toNum(body.mcqGain);
-    const qt = toNum(body.quesTotal);
-    const qg = toNum(body.quesGain);
-
-    if (mt !== undefined) set.mcqTotal = mt;
-    if (mg !== undefined) set.mcqGain = mg;
-    if (qt !== undefined) set.quesTotal = qt;
-    if (qg !== undefined) set.quesGain = qg;
-
-    // কোন মার্কস ফিল্ড আপডেট হয়েছে কি না?
-    const marksChanged =
-        mt !== undefined || mg !== undefined || qt !== undefined || qg !== undefined;
-
-    if (marksChanged) {
-        // টোটাল বের করতে সব ভ্যালু দরকার; না থাকলে কারেন্ট ডক থেকে আনব
-        const db = await getDb();
-        const col = db.collection<ResultDocDb>("results");
-        const current = await col.findOne({ _id: oid(id) } as Filter<ResultDocDb>);
-
-        if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-        const finalMcqTotal = set.mcqTotal ?? current.mcqTotal ?? 0;
-        const finalMcqGain = set.mcqGain ?? current.mcqGain ?? 0;
-        const finalQuesTotal = set.quesTotal ?? current.quesTotal ?? 0;
-        const finalQuesGain = set.quesGain ?? current.quesGain ?? 0;
-
-        set.totalMarks = finalMcqTotal + finalQuesTotal;
-        set.totalGain = finalMcqGain + finalQuesGain;
+    // subjects full-array replace (optional)
+    if (Array.isArray(body.subjects)) {
+        const normalized: SubjectMark[] = [];
+        for (const s of body.subjects) {
+            const ns = normalizeSubject(s);
+            if (!ns) {
+                return NextResponse.json({ error: "Invalid subject entry" }, { status: 400 });
+            }
+            normalized.push(ns);
+        }
+        set.subjects = normalized;
+        const { totalMarks, totalGain } = computeTotals(normalized);
+        set.totalMarks = totalMarks;
+        set.totalGain = totalGain;
     }
 
-    // আপডেট চালান
-    const db2 = await getDb();
-    const col2 = db2.collection<ResultDocDb>("results");
+    const db = await getDb();
+    const col = db.collection<ResultDocDb>("results");
 
     const filter: Filter<ResultDocDb> = { _id: oid(id) };
     const update: UpdateFilter<ResultDocDb> = { $set: set };
-    const res = await col2.updateOne(filter, update);
+    const res = await col.updateOne(filter, update);
     if (!res.matchedCount) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const updated = await col2.findOne(filter);
+    const updated = await col.findOne(filter);
     if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     return NextResponse.json({ ...updated, _id: updated._id.toString() });

@@ -1,35 +1,54 @@
-import ResultList, { type ResultRow } from "@/components/Result/ResultList";
-import { getBaseUrl } from "@/lib/baseUrl";
+// src/app/result-list/page.tsx
+import ResultList from "@/components/Result/ResultList";
+import type { ResultDoc } from "@/lib/types";
 
-async function fetchResults(): Promise<ResultRow[]> {
-    const base = await getBaseUrl();
-    const res = await fetch(`${base}/api/results`, { cache: "no-store" });
-    if (!res.ok) return [];
-    return res.json();
+// safe fetch->json helper (server-side)
+async function safeJson<T>(p: Promise<Response>, fallback: T): Promise<T> {
+    try {
+        const res = await p;
+        if (!res.ok) return fallback;
+        return (await res.json()) as T;
+    } catch {
+        return fallback;
+    }
 }
 
-async function fetchBatches(): Promise<string[]> {
-    const base = await getBaseUrl();
-    const res = await fetch(`${base}/api/batches`, { cache: "no-store" });
-    if (!res.ok) return [];
-    const rows = await res.json();
-    return rows.map((x: { name: string }) => x.name);
-}
-
-async function fetchClasses(): Promise<string[]> {
-    const base = await getBaseUrl();
-    const res = await fetch(`${base}/api/classes`, { cache: "no-store" });
-    if (!res.ok) return [];
-    const rows = await res.json();
-    return rows.map((x: { name: string }) => x.name);
+// robust base url (no Promise)
+function getBase() {
+    if (process.env.NEXT_PUBLIC_BASE_URL) {
+        return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, "");
+    }
+    if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+    }
+    // local dev fallback
+    return "http://localhost:3000";
 }
 
 export default async function Page() {
-    const [rows, batches, classes] = await Promise.all([
-        fetchResults(),
-        fetchBatches(),
-        fetchClasses(),
+    const base = getBase();
+
+    // fetch in parallel; each falls back to []
+    const [rowsRaw, batchesRaw, classesRaw] = await Promise.all([
+        safeJson<ResultDoc[]>(fetch(`${base}/api/results`, { cache: "no-store" }), []),
+        safeJson<Array<{ _id?: string; name: string }>>(
+            fetch(`${base}/api/batches`, { cache: "no-store" }),
+            []
+        ),
+        safeJson<Array<{ _id?: string; name: string }>>(
+            fetch(`${base}/api/classes`, { cache: "no-store" }),
+            []
+        ),
     ]);
+
+    // ensure arrays of strings
+    const rows: ResultDoc[] = Array.isArray(rowsRaw) ? rowsRaw : [];
+    const batches: string[] = Array.isArray(batchesRaw)
+        ? batchesRaw.map((b) => b?.name).filter(Boolean)
+        : [];
+    const classes: string[] = Array.isArray(classesRaw)
+        ? classesRaw.map((c) => c?.name).filter(Boolean)
+        : [];
 
     return (
         <div className="space-y-6">

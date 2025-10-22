@@ -37,7 +37,7 @@ export default function ClassList({ rows }: { rows: Row[] }) {
     return (
         <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 justify-between bg-base-200 rounded p-4">
                     <input
                         className="input input-bordered w-full max-w-xs"
                         placeholder="Search by name / code / teacher / batch"

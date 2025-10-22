@@ -206,8 +206,8 @@ export default function StudentList({
         <>
             <div className="card bg-base-100 shadow-xl">
                 <div className="card-body">
-                    <div className="flex flex-col lg:flex-row gap-3 items-end justify-between">
-                        <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center gap-3 justify-between bg-base-200 rounded p-4">
+                        <div className="flex justify-around w-full gap-3">
                             <input
                                 className="input input-bordered"
                                 placeholder="Search (name / id / batch / roll / phone)"
