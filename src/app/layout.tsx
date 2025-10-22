@@ -46,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <div className="grid grid-cols-12 min-h-dvh">
-          <aside className="col-span-12 md:col-span-2">
+          <aside className="col-span-12 md:col-span-2 hidden md:block">
             <Sidebar />
           </aside>
           <div className="col-span-12 md:col-span-10">

@@ -1,23 +1,34 @@
 'use client'
-import { IconMoon, IconSun } from '@tabler/icons-react'
 import React from 'react'
 import ThemeToggle from './ThemeToggle'
+import Image from 'next/image'
+import { IconMenu2 } from '@tabler/icons-react';
+import Drawer from './Drawer';
+
+const ORG_LOGO = "https://i.ibb.co.com/cXwWBJCC/logo2.png";
 
 function Header() {
     return (
         <div className="navbar bg-base-200 shadow-sm">
             <div className="flex-1">
-                <a className="text-2xl">Dashboard</a>
+                <div className="drawer-content md:hidden">
+                    <Drawer />
+                    <label htmlFor="my-drawer-1" className="btn drawer-button"><IconMenu2 /></label>
+                </div>
+                <a className="text-2xl hidden md:flex">Dashboard</a>
             </div>
             <div className="flex items-center justify-center gap-2">
                 <ThemeToggle />
 
                 <div className="dropdown dropdown-end">
                     <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
-                        <div className="w-10 rounded-full">
-                            <img
+                        <div className="w-10 rounded-full mask mask-circle">
+                            <Image
                                 alt="Tailwind CSS Navbar component"
-                                src="https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp" />
+                                src={ORG_LOGO}
+                                layout="fill"
+                                objectFit="cover"
+                            />
                         </div>
                     </div>
                     <ul
