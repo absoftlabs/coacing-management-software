@@ -3,45 +3,75 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const DAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
+const DAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"] as const;
 
 type Batch = {
     _id: string;
     name: string;
 };
 
+type Teacher = {
+    _id: string;
+    name: string;
+    isSuspended?: boolean;
+};
+
 export default function AddClass() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState<string>("");
+
+    // batches
     const [batches, setBatches] = useState<Batch[]>([]);
     const [loadingBatches, setLoadingBatches] = useState(true);
 
-    // ✅ Fetch batches from API
+    // teachers
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [loadingTeachers, setLoadingTeachers] = useState(true);
+
+    // fetch batches
     useEffect(() => {
-        async function loadBatches() {
+        (async () => {
             try {
-                const res = await fetch("/api/batches");
+                const res = await fetch("/api/batches", { cache: "no-store" });
                 if (!res.ok) throw new Error("Failed to load batches");
-                const data = await res.json();
+                const data: Batch[] = await res.json();
                 setBatches(data);
             } catch (e) {
                 console.error(e);
             } finally {
                 setLoadingBatches(false);
             }
-        }
-        loadBatches();
+        })();
+    }, []);
+
+    // fetch teachers (active only)
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch("/api/teachers?suspended=false", { cache: "no-store" });
+                if (!res.ok) throw new Error("Failed to load teachers");
+                const data: Teacher[] = await res.json();
+                // keep only active (not suspended)
+                setTeachers(data.filter(t => !t.isSuspended));
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoadingTeachers(false);
+            }
+        })();
     }, []);
 
     async function onSubmit(formData: FormData) {
         setLoading(true);
         setMsg("");
+
         const payload = {
             name: String(formData.get("name") || "").trim(),
             code: String(formData.get("code") || "").trim(),
+            // teacher now comes from a <select>
             teacher: String(formData.get("teacher") || "").trim(),
-            batch: String(formData.get("batch") || "").trim(), // from dropdown
+            batch: String(formData.get("batch") || "").trim(),
             days: DAYS.filter((d) => formData.getAll("days").includes(d)),
             isActive: formData.get("isActive") === "on",
         };
@@ -57,7 +87,7 @@ export default function AddClass() {
             router.push("/class-list");
             router.refresh();
         } else {
-            const j = await res.json().catch(() => ({}));
+            const j = (await res.json().catch(() => ({} as { error?: string })));
             setMsg("❌ " + (j.error || "Failed to create"));
         }
         setLoading(false);
@@ -69,6 +99,7 @@ export default function AddClass() {
 
             <form className="card bg-base-100 shadow-xl" action={async (fd) => onSubmit(fd)}>
                 <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Class Name */}
                     <div className="form-control">
                         <label className="label">
                             <span className="label-text">Class Name *</span>
@@ -81,6 +112,7 @@ export default function AddClass() {
                         />
                     </div>
 
+                    {/* Class Code */}
                     <div className="form-control">
                         <label className="label">
                             <span className="label-text">Class Code *</span>
@@ -93,18 +125,30 @@ export default function AddClass() {
                         />
                     </div>
 
+                    {/* Teacher (dropdown) */}
                     <div className="form-control">
                         <label className="label">
-                            <span className="label-text">Teacher Name</span>
+                            <span className="label-text">Teacher *</span>
                         </label>
-                        <input
-                            name="teacher"
-                            className="input input-bordered"
-                            placeholder="e.g. Mr. Rahman"
-                        />
+                        {loadingTeachers ? (
+                            <div className="skeleton h-10 w-full" />
+                        ) : teachers.length ? (
+                            <select name="teacher" required className="select select-bordered">
+                                <option value="">-- Select Teacher --</option>
+                                {teachers.map((t) => (
+                                    <option key={t._id} value={t.name}>
+                                        {t.name}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <div className="alert alert-warning mt-1 text-sm">
+                                No active teachers found. Please add a teacher first.
+                            </div>
+                        )}
                     </div>
 
-                    {/* ✅ Batch Dropdown */}
+                    {/* Batch (dropdown) */}
                     <div className="form-control">
                         <label className="label">
                             <span className="label-text">Batch *</span>
@@ -127,6 +171,7 @@ export default function AddClass() {
                         )}
                     </div>
 
+                    {/* Days */}
                     <div className="form-control md:col-span-2">
                         <label className="label">
                             <span className="label-text">Days</span>
@@ -137,18 +182,14 @@ export default function AddClass() {
                                     key={d}
                                     className="label cursor-pointer gap-2 border rounded-box px-3 py-2"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        name="days"
-                                        value={d}
-                                        className="checkbox checkbox-sm"
-                                    />
+                                    <input type="checkbox" name="days" value={d} className="checkbox checkbox-sm" />
                                     <span className="label-text">{d}</span>
                                 </label>
                             ))}
                         </div>
                     </div>
 
+                    {/* Active */}
                     <div className="form-control md:col-span-2">
                         <label className="label cursor-pointer">
                             <span className="label-text">Active</span>

@@ -1,4 +1,4 @@
-import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconClipboardPlus, IconDashboard, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessageChatbot, IconMessagePlus, IconSchool, IconUserPause, IconUserPlus } from '@tabler/icons-react'
+import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconChalkboardTeacher, IconClipboardPlus, IconDashboard, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessageChatbot, IconMessagePlus, IconPlayerPause, IconSchool, IconSquarePlus, IconUserPause, IconUserPlus } from '@tabler/icons-react'
 import Link from 'next/link'
 import React from 'react'
 
@@ -16,6 +16,17 @@ function Sidebar() {
                             <li><Link href={'/student-list'}><IconListDetails/> Student List</Link></li>
                             <li><Link href={'/suspended-students'}><IconUserPause/> Suspended Students</Link></li>
                             <li><Link href={'/students-report'}><IconGraph/> Student Report</Link></li>
+                        </ul>
+                    </details>
+                </li>
+                <li>
+                    <details open>
+                        <summary><IconChalkboardTeacher/> Teacher Management</summary>
+                        <ul>
+                            <li><Link href={'/add-teacher'}><IconSquarePlus/> Add Teacher</Link></li>
+                            <li><Link href={'/teacher-list'}><IconListDetails/> Teacher List</Link></li>
+                            <li><Link href={'/suspended-teacher'}><IconPlayerPause/> Suspended Teachers</Link></li>
+                            <li><Link href={'/'}><IconGraph/> Teacher Report</Link></li>
                         </ul>
                     </details>
                 </li>

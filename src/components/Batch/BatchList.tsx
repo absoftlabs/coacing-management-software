@@ -104,11 +104,8 @@ export default function BatchList({ rows }: Props) {
         <>
             <div className="card bg-base-100 shadow-xl">
                 <div className="card-body">
-                    <div className="flex flex-col md:flex-row gap-3 items-end justify-between">
+                    <div className="flex items-center gap-3 justify-between bg-base-200 rounded p-4">
                         <div className="form-control">
-                            <label className="label">
-                                <span className="label-text">Search batch</span>
-                            </label>
                             <input
                                 className="input input-bordered"
                                 placeholder="Type batch name…"

@@ -87,3 +87,15 @@ export interface ResultDoc {
 }
 
 
+// src/lib/types.ts
+export type TeacherDoc = {
+    _id?: string;                // string for client
+    name: string;
+    imageUrl?: string;
+    primarySubject: string;
+    joinDate?: string;           // ISO date (yyyy-mm-dd)
+    salary?: number;
+    isSuspended?: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
