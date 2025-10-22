@@ -168,7 +168,7 @@ export default function FeesList({ rows }: Props) {
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
                         />
-                        <a href="/add-fee" className="btn btn-primary">Collect Fee</a>
+                        <a href="/add-fees" className="btn btn-primary">Collect Fee</a>
                     </div>
 
                     <div className="overflow-x-auto mt-4">
