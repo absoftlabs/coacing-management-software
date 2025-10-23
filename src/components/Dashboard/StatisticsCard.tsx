@@ -1,62 +1,112 @@
-import { IconSchool } from '@tabler/icons-react'
-import React from 'react'
+"use client";
 
-function StatisticsCard() {
-    return (
-        <div className='grid grid-cols-10 gap-5 justify-between items-center'>
-            <div className="col-span-10 md:col-span-5 lg:col-span-2">
-                <div className="flex justify-between items-center p-4 rounded-lg shadow-md bg-base-200">
-                    <div className='text-base-content'>
-                        <h4 className="font-semibold">Total Students</h4>
-                        <p className='text-3xl font-bold'>150</p>
-                        <small>Enrolled</small>
-                    </div>
-                    <div className='bg-primary text-primary-content p-2 rounded'><IconSchool/></div>
-                </div>
-            </div>
-            <div className="col-span-10 md:col-span-5 lg:col-span-2">
-                <div className="flex justify-between items-center p-4 rounded-lg shadow-md bg-base-200">
-                    <div className='text-base-content'>
-                        <h4 className="font-semibold">Present Today</h4>
-                        <p className='text-3xl font-bold'>15</p>
-                        <small>Students</small>
-                    </div>
-                    <div className='bg-secondary text-secondary-content p-2 rounded'><IconSchool/></div>
-                </div>
-            </div>
-            <div className="col-span-10 md:col-span-5 lg:col-span-2">
-                <div className="flex justify-between items-center p-4 rounded-lg shadow-md bg-base-200">
-                    <div className='text-base-content'>
-                        <h4 className="font-semibold">Collected Fees</h4>
-                        <p className='text-3xl font-bold'>৳ 5000</p>
-                        <small>Tution Fees</small>
-                    </div>
-                    <div className='bg-accent text-accent-content p-2 rounded'><IconSchool/></div>
-                </div>
-            </div>
-            <div className="col-span-10 md:col-span-5 lg:col-span-2">
-                <div className="flex justify-between items-center p-4 rounded-lg shadow-md bg-base-200">
-                    <div className='text-base-content'>
-                        <h4 className="font-semibold">Total Teachers</h4>
-                        <p className='text-3xl font-bold'>10</p>
-                        <small>Class 6-10</small>
-                    </div>
-                    <div className='bg-info text-info-content p-2 rounded'><IconSchool/></div>
-                </div>
-            </div>
-            <div className="col-span-10 md:col-span-5 lg:col-span-2">
-                <div className="flex justify-between items-center p-4 rounded-lg shadow-md bg-base-200">
-                    <div className='text-base-content'>
-                        <h4 className="font-semibold">SMS Balance</h4>
-                        <p className='text-3xl font-bold'>৳ 1250</p>
-                        <small>Left</small>
-                    </div>
-                    <div className='bg-warning text-warning-content p-2 rounded'><IconSchool/></div>
-                </div>
-            </div>
+import React, { useEffect, useState } from "react";
+import {
+    IconSchool,
+    IconUser,
+    IconCash,
+    IconChalkboard,
+    IconMessageCircle,
+} from "@tabler/icons-react";
 
+type StatsData = {
+    totalStudents: number;
+    presentToday: number;
+    collectedFees: number;
+    totalTeachers: number;
+    smsBalance: number;
+};
+
+export default function StatisticsCard() {
+    const [stats, setStats] = useState<StatsData>({
+        totalStudents: 0,
+        presentToday: 0,
+        collectedFees: 0,
+        totalTeachers: 0,
+        smsBalance: 0,
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchStats() {
+            try {
+                const res = await fetch("/api/statistics");
+                if (!res.ok) throw new Error("Failed to load stats");
+                const data = await res.json();
+                setStats(data);
+            } catch (e) {
+                console.error("Stats fetch error:", e);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchStats();
+    }, []);
+
+    const StatCard = ({
+        title,
+        value,
+        subtitle,
+        icon,
+        color,
+    }: {
+        title: string;
+        value: string | number;
+        subtitle: string;
+        icon: React.ReactNode;
+        color: string;
+    }) => (
+        <div className="col-span-10 md:col-span-5 lg:col-span-2">
+            <div className="flex justify-between items-center p-4 rounded-lg shadow-md bg-base-200">
+                <div className="text-base-content">
+                    <h4 className="font-semibold">{title}</h4>
+                    <p className="text-3xl font-bold">
+                        {loading ? "..." : value}
+                    </p>
+                    <small>{subtitle}</small>
+                </div>
+                <div className={`p-2 rounded ${color}`}>{icon}</div>
+            </div>
         </div>
-    )
-}
+    );
 
-export default StatisticsCard
+    return (
+        <div className="grid grid-cols-10 gap-5 justify-between items-center">
+            <StatCard
+                title="Total Students"
+                value={stats.totalStudents}
+                subtitle="Enrolled"
+                icon={<IconUser />}
+                color="bg-primary text-primary-content"
+            />
+            <StatCard
+                title="Present Today"
+                value={stats.presentToday}
+                subtitle="Students"
+                icon={<IconSchool />}
+                color="bg-secondary text-secondary-content"
+            />
+            <StatCard
+                title="Collected Fees"
+                value={`৳ ${stats.collectedFees}`}
+                subtitle="Tuition Fees"
+                icon={<IconCash />}
+                color="bg-accent text-accent-content"
+            />
+            <StatCard
+                title="Total Teachers"
+                value={stats.totalTeachers}
+                subtitle="Class 6-10"
+                icon={<IconChalkboard />}
+                color="bg-info text-info-content"
+            />
+            <StatCard
+                title="SMS Balance"
+                value={`৳ ${stats.smsBalance}`}
+                subtitle="Remaining"
+                icon={<IconMessageCircle />}
+                color="bg-warning text-warning-content"
+            />
+        </div>
+    );
+}
