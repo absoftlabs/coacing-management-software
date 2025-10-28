@@ -2,7 +2,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { TeacherDoc } from "@/lib/types";
 
 export type TeacherRow = TeacherDoc & { totalAssignedClass?: number };
@@ -81,6 +81,7 @@ export default function TeacherList({
                                 <th>SL</th>
                                 <th>Photo</th>
                                 <th>Name</th>
+                                <th>Phone</th>
                                 <th>Primary Subject</th>
                                 <th>Total Assigned Class</th>
                                 <th>Join Date</th>
@@ -108,6 +109,7 @@ export default function TeacherList({
                                         )}
                                     </td>
                                     <td>{r.name}</td>
+                                    <td>{r.phone}</td>
                                     <td>{r.primarySubject}</td>
                                     <td>{r.totalAssignedClass ?? 0}</td>
                                     <td>{r.joinDate || "-"}</td>

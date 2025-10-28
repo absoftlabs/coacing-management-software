@@ -1,66 +1,116 @@
 // src/lib/sms/smsNetClient.ts
-// SMS sending client for https://api.sms.net.bd
+import { URLSearchParams } from "url";
+// src/lib/sms/smsNetClient.ts
+import { NextResponse } from "next/server";
 
-export type SmsSendResponse =
-    | { ok: true; requestId: string }
-    | { ok: false; errorMessage: string };
+export type SmsSendResult = {
+    ok: boolean;
+    requestId?: string;
+    errorCode?: number;
+    errorMessage?: string;
+};
 
-const BASE_URL = "https://api.sms.net.bd";
+export type SmsReportResult = {
+    ok: boolean;
+    status?: string;      // "Complete" | ...
+    recipients?: Array<{ number: string; status: string; charge: string }>;
+    errorMessage?: string;
+    raw?: unknown;
+};
 
-/**
- * Normalize Bangladeshi phone number to 8801XXXXXXXXX format.
- */
-function normalizePhone(number: string): string {
-    const n = number.trim().replace(/\D+/g, "");
-    if (/^8801\d{9}$/.test(n)) return n;
-    if (/^01\d{9}$/.test(n)) return "880" + n;
-    return n;
+const BASE = "https://api.sms.net.bd/sendsms";
+
+function getApiKey(): string {
+    const key = process.env.SMS_API || process.env.NEXT_PUBLIC_SMS_API;
+    if (!key) throw new Error("SMS_API not configured in env");
+    return key;
 }
 
-/**
- * Send an SMS via GET request
- */
+// 01XXXXXXXXX / 8801XXXXXXXXX → 8801XXXXXXXXX
+export function normalizeBdPhone(input: string): string | null {
+    const raw = (input || "").replace(/[^\d]/g, "");
+    if (!raw) return null;
+
+    // already 8801XXXXXXXXX
+    if (raw.length === 13 && raw.startsWith("8801")) return raw;
+
+    // 01XXXXXXXXX -> 8801XXXXXXXXX
+    if (raw.length === 11 && raw.startsWith("01")) return "88" + raw;
+
+    // fallback: if starts with 1 and total 10 digits (rare), reject
+    return null;
+}
+
+const API_URL = "https://api.sms.net.bd/sendsms";
+
 export async function sendSmsNetBd(
-    to: string | string[],
-    message: string,
+    to: string,
+    msg: string,
     senderId?: string
-): Promise<SmsSendResponse> {
-    const apiKey = process.env.SMS_API;
-    if (!apiKey) return { ok: false, errorMessage: "SMS_API missing in .env.local" };
-
-    const recipients = (Array.isArray(to) ? to : [to])
-        .map(normalizePhone)
-        .filter(Boolean)
-        .join(",");
-
-    const url = new URL(`${BASE_URL}/sendsms`);
-    url.searchParams.set("api_key", apiKey);
-    url.searchParams.set("msg", message);
-    url.searchParams.set("to", recipients);
-    if (senderId) url.searchParams.set("sender_id", senderId);
-
+): Promise<{ ok: boolean; requestId?: string; errorMessage?: string }> {
     try {
-        const res = await fetch(url.toString());
-        const json = await res.json();
+        const apiKey = process.env.SMS_API;
+        if (!apiKey) throw new Error("Missing SMS_API key in .env.local");
 
-        if (json.error === 0 && json?.data?.request_id) {
-            return { ok: true, requestId: String(json.data.request_id) };
+        const params = new URLSearchParams({
+            api_key: apiKey,
+            msg,
+            to,
+        });
+
+        if (senderId) params.append("sender_id", senderId);
+
+        const res = await fetch(`${API_URL}?${params.toString()}`, {
+            method: "GET",
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (data.error === 0) {
+            return {
+                ok: true,
+                requestId: data?.data?.request_id?.toString(),
+            };
         } else {
-            return { ok: false, errorMessage: json.msg || "Unknown provider error" };
+            return {
+                ok: false,
+                errorMessage: data.msg || "SMS sending failed",
+            };
         }
-    } catch (err) {
-        return { ok: false, errorMessage: String(err) };
+    } catch (e: any) {
+        return {
+            ok: false,
+            errorMessage: e.message || "Network error",
+        };
     }
 }
 
-/**
- * Get current SMS balance
- */
+
 export async function getSmsBalance(): Promise<string> {
-    const apiKey = process.env.SMS_API;
-    if (!apiKey) throw new Error("SMS_API not configured");
-    const res = await fetch(`${BASE_URL}/user/balance/?api_key=${apiKey}`);
-    const json = await res.json();
-    if (json.error !== 0) throw new Error(json.msg);
-    return json.data?.balance ?? "0.0000";
+    const api_key = getApiKey();
+    const url = `${BASE}/user/balance/?api_key=${encodeURIComponent(api_key)}`;
+    const res = await fetch(url, { method: "GET" });
+    const json = await res.json().catch(() => ({} as any));
+    if (json?.error === 0) return String(json?.data?.balance ?? "0.00");
+    return "0.00";
+}
+
+export async function getSmsReport(requestId: string): Promise<SmsReportResult> {
+    try {
+        const api_key = getApiKey();
+        const url = `${BASE}/report/request/${encodeURIComponent(requestId)}/?api_key=${encodeURIComponent(api_key)}`;
+        const res = await fetch(url, { method: "GET" });
+        const json = await res.json().catch(() => ({} as any));
+        if (json?.error === 0) {
+            return {
+                ok: true,
+                status: json?.data?.request_status,
+                recipients: json?.data?.recipients,
+                raw: json,
+            };
+        }
+        return { ok: false, errorMessage: json?.msg || "Report error", raw: json };
+    } catch (e: any) {
+        return { ok: false, errorMessage: e?.message || "Network error" };
+    }
 }

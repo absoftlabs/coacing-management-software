@@ -35,12 +35,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     type Updatable = Pick<
         TeacherDocDb,
-        "name" | "imageUrl" | "primarySubject" | "joinDate" | "salary" | "isSuspended" | "updatedAt"
+        "name" | "phone" | "imageUrl" | "primarySubject" | "joinDate" | "salary" | "isSuspended" | "updatedAt"
     >;
 
     const set: Partial<Updatable> = { updatedAt: new Date().toISOString() };
 
     if (typeof body.name === "string") set.name = body.name.trim();
+    if (typeof body.phone === "string") set.phone = body.phone.trim();
     if (typeof body.imageUrl === "string") set.imageUrl = body.imageUrl.trim();
     if (typeof body.primarySubject === "string") set.primarySubject = body.primarySubject.trim();
     if (typeof body.joinDate === "string") set.joinDate = body.joinDate;

@@ -91,6 +91,7 @@ export interface ResultDoc {
 export type TeacherDoc = {
     _id?: string;                // string for client
     name: string;
+    phone: string;
     imageUrl?: string;
     primarySubject: string;
     joinDate?: string;           // ISO date (yyyy-mm-dd)

@@ -23,6 +23,7 @@ export default function AddTeacher() {
         setSaving(true); setMsg("");
         const payload = {
             name: String(fd.get("name") || "").trim(),
+            phone: String(fd.get("phone") || "").trim(),
             imageUrl,
             primarySubject: String(fd.get("primarySubject") || "").trim(),
             joinDate: String(fd.get("joinDate") || "") || undefined,
@@ -54,9 +55,13 @@ export default function AddTeacher() {
 
             <form className="card bg-base-100 shadow-xl" action={async fd => onSubmit(fd)}>
                 <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="form-control md:col-span-2">
+                    <div className="form-control md:col-span-1">
                         <label className="mb-1 block text-sm font-medium">Teacher Name <span className="text-error">*</span></label>
                         <input name="name" required className="input input-bordered w-full" placeholder="e.g. Mr. Rahman" />
+                    </div>
+                    <div className="form-control md:col-span-1">
+                        <label className="mb-1 block text-sm font-medium">Phone <span className="text-error">*</span></label>
+                        <input name="phone" required className="input input-bordered w-full" placeholder="e.g. 017XXXXXXXX" />
                     </div>
 
                     <div className="form-control">

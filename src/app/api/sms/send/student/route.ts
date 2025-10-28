@@ -1,10 +1,10 @@
 // src/app/api/sms/send/student/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
-import { ObjectId, type OptionalUnlessRequiredId, type Filter } from "mongodb";
+import { ObjectId, type OptionalUnlessRequiredId } from "mongodb";
 import { renderTemplate } from "@/lib/sms/renderTemplate";
 import { sendSmsNetBd } from "@/lib/sms/smsNetClient";
-import type { SmsLogDoc, SmsTemplateDoc, SmsStatus } from "@/lib/sms/types";
+import type { SmsLogDoc, SmsTemplateDoc } from "@/lib/sms/types";
 import type { ResultDoc } from "@/lib/types";
 
 type StudentDoc = {
@@ -15,12 +15,6 @@ type StudentDoc = {
     batch?: string;
     guardianPhone?: string;
 };
-
-type SmsTemplateDb = Required<SmsTemplateDoc>;
-type SmsLogDb = SmsLogDoc & { _id: ObjectId };
-
-// DB-facing type: _id must be ObjectId for Mongo filters
-type ResultDocDb = Omit<ResultDoc, "_id"> & { _id: ObjectId };
 
 export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => null)) as {
@@ -38,35 +32,21 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-    if (!ObjectId.isValid(body.templateId) || !ObjectId.isValid(body.resultId)) {
-        return NextResponse.json(
-            { error: "Invalid templateId or resultId" },
-            { status: 400 }
-        );
-    }
 
     const db = await getDb();
 
-    // Template (DB type where _id is ObjectId)
     const template = await db
-        .collection<SmsTemplateDb>("sms_templates")
+        .collection<Required<SmsTemplateDoc>>("sms_templates")
         .findOne({ _id: new ObjectId(body.templateId) });
-    if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    if (!template)
+        return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
-    // Result (use ResultDocDb so _id is ObjectId in the filter)
-    const resultDb = await db
-        .collection<ResultDocDb>("results")
-        .findOne({ _id: new ObjectId(body.resultId) } as Filter<ResultDocDb>);
-    if (!resultDb) return NextResponse.json({ error: "Result not found" }, { status: 404 });
+    const result = await db
+        .collection<ResultDoc>("results")
+        .findOne({ _id: new ObjectId(body.resultId) } as any);
+    if (!result)
+        return NextResponse.json({ error: "Result not found" }, { status: 404 });
 
-    // Map DB shape to your app shape (ResultDoc)
-    // (If your ResultDoc uses _id?: ObjectId, this is already compatible.)
-    const result: ResultDoc = {
-        ...resultDb,
-        _id: resultDb._id.toHexString(),
-    };
-
-    // Resolve students
     let students: StudentDoc[] = [];
     if (body.studentId) {
         const s = await db
@@ -84,7 +64,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "No students found" }, { status: 404 });
     }
 
-    const colLog = db.collection<SmsLogDb>("sms_log");
+    const colLog = db.collection<Required<SmsLogDoc>>("sms_log");
     const sent: Array<{ studentId: string; phone: string; status: string }> = [];
 
     for (const s of students) {
@@ -95,28 +75,37 @@ export async function POST(req: NextRequest) {
         }
 
         const msg = renderTemplate(template.templateBody, {
-            coachingName: body.coachingName ?? "Prottasha Coaching Center",
-            student: { name: s.name, studentId: s.studentId, roll: s.roll, batch: s.batch },
+            coachingName: body.coachingName ?? "Your Coaching",
+            student: {
+                name: s.name,
+                studentId: s.studentId,
+                roll: s.roll,
+                batch: s.batch,
+            },
             result,
         });
 
         const res = await sendSmsNetBd(phone, msg, body.senderId);
 
-        const log = {
-            audience: "student" as const,
+        const log: OptionalUnlessRequiredId<SmsLogDoc> = {
+            audience: "student",
             batchId: s.batch,
             studentId: s.studentId,
             templateId: template._id.toHexString(),
             preview: msg,
             phone,
-            status: res.ok ? ("sent" as SmsStatus) : ("failed" as SmsStatus),
-            providerId: res.ok ? res.requestId : undefined,
+            status: res.ok ? "sent" : "failed",
+            providerId: res.requestId ?? "",
             sentAt: new Date().toISOString(),
-            error: res.ok ? undefined : res.errorMessage,
+            error: res.errorMessage ?? "",
         };
+        await colLog.insertOne(log);
 
-        await colLog.insertOne(log as OptionalUnlessRequiredId<SmsLogDb>);
-        sent.push({ studentId: s.studentId, phone, status: res.ok ? "sent" : "failed" });
+        sent.push({
+            studentId: s.studentId,
+            phone,
+            status: res.ok ? "sent" : "failed",
+        });
     }
 
     return NextResponse.json({ ok: true, count: sent.length, items: sent });

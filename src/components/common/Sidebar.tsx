@@ -1,4 +1,4 @@
-import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconChalkboardTeacher, IconChecklist, IconClipboardPlus, IconCurrencyTaka, IconDashboard, IconFileCheck, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessage2Plus, IconMessageChatbot, IconMessagePlus, IconPlayerPause, IconSchool, IconSettings, IconSquarePlus, IconUserPause, IconUserPlus, IconWallet } from '@tabler/icons-react'
+import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconChalkboardTeacher, IconChecklist, IconClipboardPlus, IconCurrencyTaka, IconDashboard, IconFileCheck, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessage2Plus, IconMessageChatbot, IconMessagePlus, IconPlayerPause, IconSchool, IconSquarePlus, IconUserPause, IconUserPlus, IconWallet } from '@tabler/icons-react'
 import Link from 'next/link'
 import React from 'react'
 
