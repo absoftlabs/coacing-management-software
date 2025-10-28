@@ -1,4 +1,6 @@
+// src/lib/sms/renderTemplate.ts
 import type { RenderContext } from "./types";
+
 
 // safe string
 const s = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));

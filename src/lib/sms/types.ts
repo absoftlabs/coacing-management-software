@@ -1,5 +1,7 @@
 // src/lib/sms/types.ts
 import type { ObjectId } from "mongodb";
+import type { ResultDoc } from "@/lib/types";
+
 
 /**
  * SMS Template document
@@ -43,4 +45,21 @@ export interface SmsLogDoc {
     providerId?: string;
     sentAt: string;
     error?: string;
+}
+
+
+export interface RenderContext {
+    coachingName?: string;
+    student?: {
+        name: string;
+        studentId: string;
+        roll?: string;
+        batch?: string;
+    };
+    teacher?: {
+        name: string;
+        teacherId?: string;
+        subject?: string;
+    };
+    result?: ResultDoc;
 }
