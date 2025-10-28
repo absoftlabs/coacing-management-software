@@ -18,13 +18,25 @@ export type SmsReportResult = {
     raw?: unknown;
 };
 
+export type SmsReportApiResponse = {
+    error: number;
+    msg?: string;
+    data?: {
+        request_status?: string;
+        recipients?: Array<{ number: string; status: string; charge: string }>;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+};
+
 const BASE = "https://api.sms.net.bd/sendsms";
 
 function getApiKey(): string {
-    const key = process.env.SMS_API || process.env.NEXT_PUBLIC_SMS_API;
-    if (!key) throw new Error("SMS_API not configured in env");
+    const key = process.env.SMS_API_KEY || process.env.SMS_API;
+    if (!key) throw new Error("Missing SMS API key");
     return key;
 }
+
 
 // 01XXXXXXXXX / 8801XXXXXXXXX → 8801XXXXXXXXX
 export function normalizeBdPhone(input: string): string | null {
@@ -77,10 +89,10 @@ export async function sendSmsNetBd(
                 errorMessage: data.msg || "SMS sending failed",
             };
         }
-    } catch (e: any) {
+    } catch (e: unknown) {
         return {
             ok: false,
-            errorMessage: e.message || "Network error",
+            errorMessage: e instanceof Error ? e.message : "Network error",
         };
     }
 }
@@ -90,7 +102,11 @@ export async function getSmsBalance(): Promise<string> {
     const api_key = getApiKey();
     const url = `${BASE}/user/balance/?api_key=${encodeURIComponent(api_key)}`;
     const res = await fetch(url, { method: "GET" });
-    const json = await res.json().catch(() => ({} as any));
+    const json = (await res.json().catch(() => ({}))) as {
+        error?: number;
+        data?: { balance?: string } | null;
+        [key: string]: unknown;
+    };
     if (json?.error === 0) return String(json?.data?.balance ?? "0.00");
     return "0.00";
 }
@@ -99,18 +115,35 @@ export async function getSmsReport(requestId: string): Promise<SmsReportResult> 
     try {
         const api_key = getApiKey();
         const url = `${BASE}/report/request/${encodeURIComponent(requestId)}/?api_key=${encodeURIComponent(api_key)}`;
+
         const res = await fetch(url, { method: "GET" });
-        const json = await res.json().catch(() => ({} as any));
-        if (json?.error === 0) {
+        if (!res.ok) {
+            return {
+                ok: false,
+                errorMessage: `HTTP ${res.status}`,
+            };
+        }
+
+        const json: SmsReportApiResponse = await res.json();
+
+        if (json.error === 0 && json.data) {
             return {
                 ok: true,
-                status: json?.data?.request_status,
-                recipients: json?.data?.recipients,
+                status: json.data.request_status,
+                recipients: json.data.recipients ?? [],
                 raw: json,
             };
         }
-        return { ok: false, errorMessage: json?.msg || "Report error", raw: json };
-    } catch (e: any) {
-        return { ok: false, errorMessage: e?.message || "Network error" };
+
+        return {
+            ok: false,
+            errorMessage: json.msg || "Unknown report error",
+            raw: json,
+        };
+    } catch (e: unknown) {
+        let errMsg = "Network error";
+        if (e instanceof Error) errMsg = e.message;
+        else if (typeof e === "string") errMsg = e;
+        return { ok: false, errorMessage: errMsg };
     }
 }

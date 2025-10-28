@@ -1,7 +1,7 @@
 // src/app/api/sms/send/student/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
-import { ObjectId, type OptionalUnlessRequiredId } from "mongodb";
+import { ObjectId, type OptionalUnlessRequiredId, type Filter } from "mongodb";
 import { renderTemplate } from "@/lib/sms/renderTemplate";
 import { sendSmsNetBd } from "@/lib/sms/smsNetClient";
 import type { SmsLogDoc, SmsTemplateDoc } from "@/lib/sms/types";
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const result = await db
         .collection<ResultDoc>("results")
-        .findOne({ _id: new ObjectId(body.resultId) } as any);
+        .findOne({ _id: new ObjectId(body.resultId) } as unknown as Filter<ResultDoc>);
     if (!result)
         return NextResponse.json({ error: "Result not found" }, { status: 404 });
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
             sentAt: new Date().toISOString(),
             error: res.errorMessage ?? "",
         };
-        await colLog.insertOne(log);
+        await colLog.insertOne(log as Required<SmsLogDoc>);
 
         sent.push({
             studentId: s.studentId,

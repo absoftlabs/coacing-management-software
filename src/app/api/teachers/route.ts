@@ -26,11 +26,11 @@ export async function GET(req: NextRequest) {
 
     const filter: Filter<TeacherDocDb> = {};
     if (onlyActive) {
-        filter.status = { $ne: "suspended" } as any;
+        filter.status = { $ne: "suspended" } as Filter<TeacherDocDb>["status"];
     }
     if (q) {
         const rx = { $regex: q, $options: "i" };
-        (filter as any).$or = [{ name: rx }, { teacherId: rx }, { subject: rx }];
+        (filter as Filter<TeacherDocDb> & { $or: { [key: string]: typeof rx }[] }).$or = [{ name: rx }, { teacherId: rx }, { subject: rx }];
     }
 
     const items = await col.find(filter).sort({ createdAt: -1 }).toArray();
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     };
 
     const db = await getDb();
-    const res = await db.collection<TeacherDocDb>("teachers").insertOne(doc as any);
+    const res = await db.collection<TeacherDocDb>("teachers").insertOne(doc);
 
     return NextResponse.json(
         { _id: res.insertedId.toHexString(), ...doc },
