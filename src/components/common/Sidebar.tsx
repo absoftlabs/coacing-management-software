@@ -1,4 +1,4 @@
-import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconChalkboardTeacher, IconChecklist, IconClipboardPlus, IconCurrencyTaka, IconDashboard, IconFileCheck, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessageChatbot, IconMessagePlus, IconPlayerPause, IconSchool, IconSquarePlus, IconUserPause, IconUserPlus, IconWallet } from '@tabler/icons-react'
+import { IconAddressBook, IconAdjustmentsSearch, IconApps, IconBackpack, IconBrowserPlus, IconChalkboardTeacher, IconChecklist, IconClipboardPlus, IconCurrencyTaka, IconDashboard, IconFileCheck, IconGraph, IconHexagonLetterR, IconListDetails, IconMessage2, IconMessage2Plus, IconMessageChatbot, IconMessagePlus, IconPlayerPause, IconSchool, IconSettings, IconSquarePlus, IconUserPause, IconUserPlus, IconWallet } from '@tabler/icons-react'
 import Link from 'next/link'
 import React from 'react'
 
@@ -67,9 +67,9 @@ function Sidebar() {
                     <details>
                         <summary><IconMessage2 /> SMS Management</summary>
                         <ul>
-                            <li><Link href={'/sms-templates'}><IconMessagePlus /> Add SMS Template</Link></li>
-                            <li><Link href={'/sms-sender'}><IconMessageChatbot /> Custom SMS Sender</Link></li>
-                            <li><Link href={'/sms-report'}><IconGraph /> SMS Report</Link></li>
+                            <li><Link href={'/sms/templates'}><IconMessage2Plus /> SMS Templates</Link></li>
+                            <li><Link href={'/sms/students'}><IconMessageChatbot /> SMS Students</Link></li>
+                            <li><Link href={'/sms/teachers'}><IconMessagePlus /> SMS Teachers</Link></li>
                         </ul>
                     </details>
                 </li>
