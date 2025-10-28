@@ -1,11 +1,22 @@
 // src/app/api/sms/report/[id]/route.ts
-import { NextResponse } from "next/server";
-import { getSmsReport } from "@/lib/sms/smsNetClient";
+import { NextRequest, NextResponse } from "next/server";
+import { getSmsReport } from "@/lib/sms/smsNetClient"; // ensure this exports getSmsReport
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-    const id = params.id;
-    if (!id) return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
+// GET /api/sms/report/:id
+// NOTE: In this codebase, ctx.params is a Promise<{ id: string }>, so we await it.
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+    const { id } = await ctx.params;
 
-    const rep = await getSmsReport(id);
-    return NextResponse.json(rep, { status: rep.ok ? 200 : 502 });
+    if (!id) {
+        return NextResponse.json({ ok: false, error: "Missing request id" }, { status: 400 });
+    }
+
+    try {
+        const report = await getSmsReport(id);
+        // If provider says ok, 200; otherwise bubble as 502 Bad Gateway with provider message
+        return NextResponse.json(report, { status: report.ok ? 200 : 502 });
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : "Unexpected error";
+        return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    }
 }
