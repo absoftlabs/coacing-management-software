@@ -223,14 +223,14 @@ export default function StudentSmsPage() {
             <div className="card-body space-y-6">
                 <h2 className="card-title">Send SMS to Students / Guardians</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     {/* Batch */}
                     <div className="form-control">
                         <label className="label">
                             <span className="label-text">Batch *</span>
                         </label>
                         <select
-                            className="select select-bordered rounded-full"
+                            className="select select-bordered rounded-full ps-5"
                             value={batch}
                             onChange={(e) => {
                                 setBatch(e.target.value);
@@ -253,7 +253,7 @@ export default function StudentSmsPage() {
                             <span className="label-text">SMS Template *</span>
                         </label>
                         <select
-                            className="select select-bordered rounded-full"
+                            className="select select-bordered rounded-full ps-5"
                             value={templateId}
                             onChange={(e) => setTemplateId(e.target.value)}
                         >
@@ -267,7 +267,7 @@ export default function StudentSmsPage() {
                     </div>
 
                     {/* Student search + pick */}
-                    <div className="form-control md:col-span-2">
+                    <div className="form-control">
                         <label className="label">
                             <span className="label-text">Student (Optional)</span>
                         </label>
@@ -279,7 +279,7 @@ export default function StudentSmsPage() {
                                 onChange={(e) => setQStudent(e.target.value)}
                             />
                             <select
-                                className="select select-bordered rounded-full join-item"
+                                className="select select-bordered rounded-full join-item ps-5"
                                 value={studentId}
                                 onChange={(e) => {
                                     setStudentId(e.target.value);
@@ -305,7 +305,7 @@ export default function StudentSmsPage() {
                             <span className="label-text">Result Type *</span>
                         </label>
                         <select
-                            className="select select-bordered rounded-full"
+                            className="select select-bordered rounded-full ps-5"
                             value={resultType}
                             onChange={(e) => {
                                 setResultType(e.target.value);
@@ -327,7 +327,7 @@ export default function StudentSmsPage() {
                             <span className="label-text">Select Result *</span>
                         </label>
                         <select
-                            className="select select-bordered rounded-full"
+                            className="select select-bordered rounded-full ps-5"
                             value={resultId}
                             onChange={(e) => setResultId(e.target.value)}
                         >

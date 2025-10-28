@@ -115,6 +115,7 @@ export default function TeacherSmsPage() {
                 (l.preview ?? "").toLowerCase().includes(s) ||
                 (l.phone ?? "").toLowerCase().includes(s) ||
                 (l.teacherId ?? "").toLowerCase().includes(s) ||
+
                 (l.status ?? "").toLowerCase().includes(s)
         );
     }, [logs, logQuery]);
@@ -126,12 +127,10 @@ export default function TeacherSmsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Scope */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Select Teacher Scope *</span>
-                        </label>
+                    <div className="form-control col-span-1">
+                        <legend className="fieldset-legend">Select Teacher Scope *</legend>
                         <select
-                            className="select select-bordered rounded-full"
+                            className="select select-bordered rounded-full ps-5 w-full"
                             value={scope}
                             onChange={(e) => {
                                 const v = e.target.value as "ALL" | "INDIVIDUAL";
@@ -139,18 +138,16 @@ export default function TeacherSmsPage() {
                                 if (v === "ALL") setTeacherId("");
                             }}
                         >
-                            <option value="ALL">All</option>
-                            <option value="INDIVIDUAL">Individual Teacher</option>
+                            <option className="" value="ALL">All</option>
+                            <option className="" value="INDIVIDUAL">Individual Teacher</option>
                         </select>
                     </div>
 
                     {/* Pick teacher if INDIVIDUAL */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Teacher</span>
-                        </label>
+                    <div className="form-control col-span-1">
+                        <legend className="fieldset-legend">Teacher</legend>
                         <select
-                            className="select select-bordered rounded-full"
+                            className="select select-bordered rounded-full ps-5 w-full"
                             value={teacherId}
                             onChange={(e) => setTeacherId(e.target.value)}
                             disabled={scope !== "INDIVIDUAL"}
@@ -165,21 +162,17 @@ export default function TeacherSmsPage() {
                     </div>
 
                     {/* Message */}
-                    <div className="form-control md:col-span-2">
-                        <label className="label">
-                            <span className="label-text">SMS *</span>
-                        </label>
+                    <fieldset  className="fieldset form-control md:col-span-2 grid w-full">
+                        <legend className="fieldset-legend">SMS *</legend>
                         <textarea
-                            className="textarea textarea-bordered rounded-2xl"
+                            className="textarea textarea-bordered rounded-2xl w-full"
                             rows={4}
                             placeholder="Write your message..."
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                         />
-                        <small className="opacity-60">
-                            This message will be sent to {scope === "ALL" ? "all teachers" : "the selected teacher"}.
-                        </small>
-                    </div>
+                        <div className="label">This message will be sent to {scope === "ALL" ? "all teachers" : "the selected teacher"}.</div>
+                    </fieldset>
                 </div>
 
                 <div className="flex justify-end gap-2">
@@ -230,7 +223,7 @@ export default function TeacherSmsPage() {
                                 {filteredLogs.map((l) => (
                                     <tr key={l._id}>
                                         <td>{new Date(l.sentAt).toLocaleString()}</td>
-                                        <td>{l.teacherId ?? "-"}</td>
+                                        <td>{l._id ?? "-"}</td>
                                         <td className="font-mono">{l.phone}</td>
                                         <td>
                                             <span
