@@ -2,12 +2,9 @@
 import StudentList from "@/components/Student/StudentList";
 import { api } from "@/lib/baseUrl";
 
-const DIVISIONS = ["Science", "Humanities", "Commerce"] as const;
-type Division = (typeof DIVISIONS)[number];
-const SECTIONS = ["A", "B", "C", "D"] as const;
-type Section = (typeof SECTIONS)[number];
-const GENDERS = ["Male", "Female"] as const;
-type Gender = (typeof GENDERS)[number];
+type Division = "Science" | "Humanities" | "Commerce";
+type Section = "A" | "B" | "C" | "D";
+type Gender = "Male" | "Female";
 
 export type StudentItem = {
     _id: string;

@@ -8,8 +8,7 @@ type Props = { params: Params } | { params: Promise<Params> };
 
 async function getParams(p: Props["params"]): Promise<Params> {
     // Promise হোক বা না হোক — resolve করে ফেলি
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    return await Promise.resolve(p as Params | Promise<Params>);
+    return Promise.resolve(p as Params | Promise<Params>);
 }
 
 async function fetchStudent(id: string) {

@@ -11,7 +11,6 @@ let clientPromise: Promise<MongoClient>;
 
 // Dev মোডে হট-রিলোডে কানেকশন বারবার না খোলে—এই প্যাটার্ন
 declare global {
-    // eslint-disable-next-line no-var
     var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 

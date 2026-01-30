@@ -1,7 +1,5 @@
 // src/lib/sms/smsNetClient.ts
 import { URLSearchParams } from "url";
-// src/lib/sms/smsNetClient.ts
-import { NextResponse } from "next/server";
 
 export type SmsSendResult = {
     ok: boolean;

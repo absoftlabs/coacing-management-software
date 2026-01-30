@@ -1,4 +1,3 @@
-import dynamic from "next/dynamic";
 import { api } from "@/lib/baseUrl";
 import type { TeacherDoc } from "@/lib/types";
 import EditTeacher from "@/components/Teacher/EditTeacher";

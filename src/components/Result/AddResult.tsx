@@ -106,8 +106,6 @@ export default function AddResult() {
         }
     }, [selectedBatch, filteredClasses]);
 
-    const canAddMoreSubjects = filteredClasses.length > 1;
-
     function addSubject() {
         setSubjects((prev) => [...prev, { className: "", mcqTotal: 0, mcqGain: 0, quesTotal: 0, quesGain: 0 }]);
     }
