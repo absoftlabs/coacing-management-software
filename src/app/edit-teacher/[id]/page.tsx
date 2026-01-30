@@ -1,13 +1,12 @@
 import dynamic from "next/dynamic";
-import { getBaseUrl } from "@/lib/baseUrl";
+import { api } from "@/lib/baseUrl";
 import type { TeacherDoc } from "@/lib/types";
 import EditTeacher from "@/components/Teacher/EditTeacher";
 
 
 async function fetchItem(id: string): Promise<TeacherDoc | null> {
     try {
-        const base = await getBaseUrl(); // IMPORTANT: await
-        const res = await fetch(`${base}/api/teachers/${id}`, { cache: "no-store" });
+        const res = await api(`/api/teachers/${id}`, { cache: "no-store" });
         if (!res.ok) return null;
         return res.json();
     } catch {

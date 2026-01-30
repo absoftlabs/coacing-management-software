@@ -3,7 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/common/Sidebar";
 import Header from "@/components/common/Header";
-import Link from "next/link";
+import { cookies, headers } from "next/headers";
+import { verifyAuthToken } from "@/lib/auth";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,7 +25,13 @@ export const metadata: Metadata = {
   description: "A web application to manage coaching students and teachers.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const headerAuthed = headers().get("x-authenticated") === "1";
+  const token = cookies().get("cms_token")?.value;
+  const cookieAuthed = token ? (await verifyAuthToken(token)) !== null : false;
+  const isAuthed = headerAuthed || cookieAuthed;
   return (
     <html lang="en" suppressHydrationWarning data-theme="forest">
       <head>
@@ -46,15 +54,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <div className="grid grid-cols-12 min-h-dvh">
-          <aside className="col-span-12 md:col-span-2 hidden md:block">
-            <Sidebar />
-          </aside>
-          <div className="col-span-12 md:col-span-10">
-            <Header />
-            <main className="p-4 lg:p-8">{children}</main>
+        {isAuthed ? (
+          <div className="grid grid-cols-12 min-h-dvh">
+            <aside className="col-span-12 md:col-span-2 hidden md:block">
+              <Sidebar />
+            </aside>
+            <div className="col-span-12 md:col-span-10">
+              <Header />
+              <main className="p-4 lg:p-8">{children}</main>
+            </div>
           </div>
-        </div>
+        ) : (
+          <main className="min-h-dvh">{children}</main>
+        )}
       </body>
     </html>
   );

@@ -1,10 +1,9 @@
 import FeesList from "@/components/Fees/FeesList";
-import { getBaseUrl } from "@/lib/baseUrl";
+import { api } from "@/lib/baseUrl";
 import type { FeeDoc } from "@/lib/types";
 
 async function fetchRows(): Promise<FeeDoc[]> {
-    const base = await getBaseUrl();
-    const res = await fetch(`${base}/api/fees`, { cache: "no-store" });
+    const res = await api("/api/fees", { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
 }

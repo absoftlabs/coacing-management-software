@@ -1,10 +1,9 @@
 import TeacherList, { type TeacherRow } from "@/components/Teacher/TeacherList";
-import { getBaseUrl } from "@/lib/baseUrl";
+import { api } from "@/lib/baseUrl";
 
 async function fetchRows(): Promise<TeacherRow[]> {
     try {
-        const base = await getBaseUrl(); // IMPORTANT: await
-        const res = await fetch(`${base}/api/teachers?suspended=true`, { cache: "no-store" });
+        const res = await api("/api/teachers?suspended=true", { cache: "no-store" });
         if (!res.ok) return [];
         return res.json();
     } catch {

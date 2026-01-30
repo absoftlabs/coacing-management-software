@@ -30,5 +30,9 @@ export async function api(path: string, init?: RequestInit): Promise<Response> {
     }
 
     const base = await getBaseUrl();
-    return fetch(`${base}${path}`, init);
+    const h = await headers();
+    const cookie = h.get("cookie");
+    const merged = new Headers(init?.headers);
+    if (cookie) merged.set("cookie", cookie);
+    return fetch(`${base}${path}`, { ...init, headers: merged });
 }

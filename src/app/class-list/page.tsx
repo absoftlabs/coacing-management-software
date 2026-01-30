@@ -1,6 +1,6 @@
 // src/app/class-list/page.tsx
 import ClassList from "@/components/Class/ClassList";
-import { getBaseUrl } from "@/lib/baseUrl";
+import { api } from "@/lib/baseUrl";
 
 type ClassItem = {
     _id: string;
@@ -13,8 +13,7 @@ type ClassItem = {
 };
 
 async function getClasses(): Promise<ClassItem[]> {
-    const base = await getBaseUrl();       // ← অবশ্যই await
-    const res = await fetch(`${base}/api/classes`, { cache: "no-store" });
+    const res = await api("/api/classes", { cache: "no-store" });
     if (!res.ok) return [];
     return (await res.json()) as ClassItem[];
 }

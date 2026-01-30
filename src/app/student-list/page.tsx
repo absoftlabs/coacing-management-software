@@ -1,5 +1,6 @@
 // src/app/student-list/page.tsx
 import StudentList from "@/components/Student/StudentList";
+import { api } from "@/lib/baseUrl";
 
 const DIVISIONS = ["Science", "Humanities", "Commerce"] as const;
 type Division = (typeof DIVISIONS)[number];
@@ -33,19 +34,14 @@ export type StudentItem = {
 type Batch = { _id: string; name: string };
 
 async function getStudents(): Promise<StudentItem[]> {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/students`, {
-        // relative URL-ও কাজ করে; BASE_URL দিলাম যাতে লোকাল/প্রোড সেফ থাকে
-        cache: "no-store",
-    }).catch(() => null);
+    const res = await api("/api/students", { cache: "no-store" }).catch(() => null);
     if (!res || !res.ok) return [];
     const data = (await res.json()) as StudentItem[];
     return Array.isArray(data) ? data : [];
 }
 
 async function getBatches(): Promise<Batch[]> {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/batches`, {
-        cache: "no-store",
-    }).catch(() => null);
+    const res = await api("/api/batches", { cache: "no-store" }).catch(() => null);
     if (!res || !res.ok) return [];
     const data = (await res.json()) as Batch[];
     return Array.isArray(data) ? data : [];

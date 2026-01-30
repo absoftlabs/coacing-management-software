@@ -49,11 +49,12 @@ export default function AddClass() {
     useEffect(() => {
         (async () => {
             try {
+                // you can implement ?suspended=false in your /api/teachers handler;
+                // we also filter on the client to be safe
                 const res = await fetch("/api/teachers?suspended=false", { cache: "no-store" });
                 if (!res.ok) throw new Error("Failed to load teachers");
                 const data: Teacher[] = await res.json();
-                // keep only active (not suspended)
-                setTeachers(data.filter(t => !t.isSuspended));
+                setTeachers(data.filter((t) => !t.isSuspended));
             } catch (e) {
                 console.error(e);
             } finally {
@@ -66,13 +67,19 @@ export default function AddClass() {
         setLoading(true);
         setMsg("");
 
+        // gather days safely/typed
+        const selectedDays = new Set(formData.getAll("days").map((v) => String(v)));
+        const days = DAYS.filter((d) => selectedDays.has(d));
+
         const payload = {
             name: String(formData.get("name") || "").trim(),
             code: String(formData.get("code") || "").trim(),
-            // teacher now comes from a <select>
-            teacher: String(formData.get("teacher") || "").trim(),
+            // store the teacher name (to keep backward-compatible with your existing API),
+            // and also send teacherId so you can migrate later without breaking
+            teacher: String(formData.get("teacherName") || "").trim(),
+            teacherId: String(formData.get("teacherId") || "").trim(),
             batch: String(formData.get("batch") || "").trim(),
-            days: DAYS.filter((d) => formData.getAll("days").includes(d)),
+            days,
             isActive: formData.get("isActive") === "on",
         };
 
@@ -133,14 +140,28 @@ export default function AddClass() {
                         {loadingTeachers ? (
                             <div className="skeleton h-10 w-full" />
                         ) : teachers.length ? (
-                            <select name="teacher" required className="select select-bordered">
-                                <option value="">-- Select Teacher --</option>
-                                {teachers.map((t) => (
-                                    <option key={t._id} value={t.name}>
-                                        {t.name}
-                                    </option>
-                                ))}
-                            </select>
+                            <>
+                                {/* Hidden field to also submit human-readable teacher name */}
+                                <input type="hidden" name="teacherName" id="teacherNameHidden" />
+                                <select
+                                    name="teacherId"
+                                    required
+                                    className="select select-bordered"
+                                    onChange={(e) => {
+                                        // update hidden teacherName when teacherId changes
+                                        const t = teachers.find((x) => x._id === e.target.value);
+                                        const hidden = document.getElementById("teacherNameHidden") as HTMLInputElement | null;
+                                        if (hidden) hidden.value = t?.name ?? "";
+                                    }}
+                                >
+                                    <option value="">-- Select Teacher --</option>
+                                    {teachers.map((t) => (
+                                        <option key={t._id} value={t._id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </>
                         ) : (
                             <div className="alert alert-warning mt-1 text-sm">
                                 No active teachers found. Please add a teacher first.

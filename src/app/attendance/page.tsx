@@ -1,16 +1,13 @@
 // src/app/attendance/page.tsx
 import MarkAttendance from "@/components/Attendance/MarkAttendance";
 import StatusList from "@/components/Attendance/StatusList";
+import { api } from "@/lib/baseUrl";
 
 type BatchApi = { name?: string } | string;
 
 async function fetchBatches(): Promise<string[]> {
-    // Works both with absolute and relative URL:
-    const base = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ?? "";
-    const url = `${base}/api/batches`;
-
     try {
-        const res = await fetch(url, { cache: "no-store" });
+        const res = await api("/api/batches", { cache: "no-store" });
         if (!res.ok) return [];
 
         const arr = (await res.json()) as BatchApi[];

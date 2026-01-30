@@ -1,9 +1,9 @@
 import React from "react";
 import EditClass from "@/components/Class/EditClass";
+import { api } from "@/lib/baseUrl";
 
 async function fetchClass(id: string) {
-    const base = process.env.NEXT_PUBLIC_BASE_URL || "";
-    const res = await fetch(`${base}/api/classes/${id}`, { cache: "no-store" });
+    const res = await api(`/api/classes/${id}`, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json();
 }
