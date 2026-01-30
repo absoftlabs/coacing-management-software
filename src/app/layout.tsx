@@ -28,7 +28,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const headerAuthed = headers().get("x-authenticated") === "1";
+  const h = await headers();
+  const headerAuthed = h.get("x-authenticated") === "1";
   const token = cookies().get("cms_token")?.value;
   const cookieAuthed = token ? (await verifyAuthToken(token)) !== null : false;
   const isAuthed = headerAuthed || cookieAuthed;
