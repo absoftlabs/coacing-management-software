@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ResultDoc } from "@/lib/types";
 
 type Props = {
@@ -14,6 +14,10 @@ export default function ResultList({ rows, batches, classes }: Props) {
     const [q, setQ] = useState<string>("");
     const [batch, setBatch] = useState<string>("");
     const [className, setClassName] = useState<string>("");
+    const [templates, setTemplates] = useState<Array<{ _id: string; templateName: string }>>([]);
+    const [templateId, setTemplateId] = useState<string>("");
+    const [sendingId, setSendingId] = useState<string | null>(null);
+    const [smsMsg, setSmsMsg] = useState<string>("");
 
     const dialogRef = useRef<HTMLDialogElement | null>(null);
     const [view, setView] = useState<ResultDoc | null>(null);
@@ -58,6 +62,55 @@ export default function ResultList({ rows, batches, classes }: Props) {
     function closeView() {
         dialogRef.current?.close();
         setView(null);
+    }
+
+    async function loadTemplates() {
+        try {
+            const res = await fetch("/api/sms/templates", { cache: "no-store" });
+            if (!res.ok) return;
+            const list = (await res.json()) as Array<{ _id: string; templateName: string }>;
+            setTemplates(list);
+            if (list.length && !templateId) setTemplateId(list[0]._id);
+        } catch {
+            // ignore
+        }
+    }
+    
+    // auto-load templates once so SMS button isn't muted
+    useEffect(() => {
+        loadTemplates();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    async function sendSms(r: ResultDoc) {
+        if (!templateId) {
+            setSmsMsg("❌ Please select an SMS template first.");
+            return;
+        }
+        if (!r._id) return;
+        setSmsMsg("");
+        setSendingId(r._id);
+        try {
+            const res = await fetch("/api/sms/send/student", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    batchId: r.batch,
+                    studentId: r.studentId,
+                    templateId,
+                    resultId: r._id,
+                    coachingName: "Prottasha Coaching Center",
+                }),
+            });
+            if (res.ok) {
+                setSmsMsg("✅ SMS sent");
+            } else {
+                const j = (await res.json().catch(() => ({}))) as { error?: string };
+                setSmsMsg("❌ " + (j.error ?? "SMS failed"));
+            }
+        } finally {
+            setSendingId(null);
+        }
     }
 
     // --- inside ResultList component ---
@@ -251,11 +304,26 @@ export default function ResultList({ rows, batches, classes }: Props) {
                                     </option>
                                 ))}
                             </select>
+                            <select
+                                className="select select-bordered"
+                                value={templateId}
+                                onChange={(e) => setTemplateId(e.target.value)}
+                            >
+                                <option value="">SMS Template</option>
+                                {templates.map((t) => (
+                                    <option key={t._id} value={t._id}>
+                                        {t.templateName}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <a href="/add-result" className="btn btn-primary">
                             Add Result
                         </a>
                     </div>
+                    {smsMsg && (
+                        <div className="mt-2 text-sm">{smsMsg}</div>
+                    )}
 
                     <div className="overflow-x-auto mt-4">
                         <table className="table table-zebra">
@@ -325,6 +393,14 @@ export default function ResultList({ rows, batches, classes }: Props) {
                                                     >
                                                         Edit
                                                     </a>
+                                                    <button
+                                                        className="btn btn-sm btn-success join-item text-white"
+                                                        onClick={() => sendSms(r)}
+                                                        disabled={!templateId || sendingId === r._id}
+                                                        title={!templateId ? "Select SMS template" : "Send SMS"}
+                                                    >
+                                                        {sendingId === r._id ? "Sending..." : "Send SMS"}
+                                                    </button>
                                                     <button
                                                         className="btn btn-sm btn-outline join-item"
                                                         onClick={() => r._id && onDelete(r._id)}

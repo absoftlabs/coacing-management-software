@@ -108,5 +108,11 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    return NextResponse.json({ ok: true, count: sent.length, items: sent });
+    const failed = sent.filter((x) => x.status !== "sent").length;
+    return NextResponse.json({
+        ok: failed === 0,
+        count: sent.length,
+        failed,
+        items: sent,
+    });
 }

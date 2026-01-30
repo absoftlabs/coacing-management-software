@@ -1,6 +1,7 @@
 // src/app/api/statistics/route.ts
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { getSmsBalance } from "@/lib/sms/smsNetClient";
 
 export async function GET() {
     try {
@@ -37,8 +38,14 @@ export async function GET() {
             totalFees = 0;
         }
 
-        // SMS balance (static or fetched via API later)
-        const smsBalance = 1250;
+        // SMS balance from provider API
+        let smsBalance = 0;
+        try {
+            const bal = await getSmsBalance();
+            smsBalance = Number(bal) || 0;
+        } catch {
+            smsBalance = 0;
+        }
 
         return NextResponse.json({
             totalStudents,

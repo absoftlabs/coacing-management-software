@@ -106,6 +106,8 @@ export default function AddResult() {
         }
     }, [selectedBatch, filteredClasses]);
 
+    const canAddMoreSubjects = !!selectedBatch;
+
     function addSubject() {
         setSubjects((prev) => [...prev, { className: "", mcqTotal: 0, mcqGain: 0, quesTotal: 0, quesGain: 0 }]);
     }
@@ -262,6 +264,17 @@ export default function AddResult() {
                             </div>
                         </div>
                     ))}
+
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={addSubject}
+                            className="btn btn-outline"
+                            disabled={!canAddMoreSubjects}
+                        >
+                            Add Another Subject
+                        </button>
+                    </div>
 
                     <div className="flex justify-end gap-2">
                         <a href="/result-list" className="btn btn-ghost">Cancel</a>

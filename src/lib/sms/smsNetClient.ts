@@ -27,7 +27,7 @@ export type SmsReportApiResponse = {
     [key: string]: unknown;
 };
 
-const BASE = "https://api.sms.net.bd/sendsms";
+const BASE = "https://api.sms.net.bd";
 
 function getApiKey(): string {
     const key = process.env.SMS_API_KEY || process.env.SMS_API;
@@ -59,16 +59,21 @@ export async function sendSmsNetBd(
     senderId?: string
 ): Promise<{ ok: boolean; requestId?: string; errorMessage?: string }> {
     try {
-        const apiKey = process.env.SMS_API;
-        if (!apiKey) throw new Error("Missing SMS_API key in .env.local");
+        const apiKey = getApiKey();
+
+        const normalized = normalizeBdPhone(to);
+        if (!normalized) {
+            return { ok: false, errorMessage: "Invalid phone number" };
+        }
 
         const params = new URLSearchParams({
             api_key: apiKey,
             msg,
-            to,
+            to: normalized,
         });
 
-        if (senderId) params.append("sender_id", senderId);
+        const sid = senderId || process.env.SMS_SENDER_ID;
+        if (sid) params.append("sender_id", sid);
 
         const res = await fetch(`${API_URL}?${params.toString()}`, {
             method: "GET",
