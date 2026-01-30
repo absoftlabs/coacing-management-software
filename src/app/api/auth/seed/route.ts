@@ -4,6 +4,7 @@ import { getDb } from "@/lib/mongodb";
 
 export async function POST(req: NextRequest) {
     const secret = req.nextUrl.searchParams.get("secret") || "";
+    const mode = (req.nextUrl.searchParams.get("mode") || "upsert").toLowerCase();
     const expected = process.env.SEED_SECRET || "";
     if (!expected || secret !== expected) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,6 +23,11 @@ export async function POST(req: NextRequest) {
 
     const db = await getDb();
     const col = db.collection("admins");
+
+    if (mode === "check") {
+        const exists = await col.findOne({ email });
+        return NextResponse.json({ ok: true, email, exists: !!exists });
+    }
 
     const now = new Date().toISOString();
     const passwordHash = await bcrypt.hash(password, 10);
@@ -44,5 +50,5 @@ export async function POST(req: NextRequest) {
         { upsert: true }
     );
 
-    return NextResponse.json({ ok: true, email });
+    return NextResponse.json({ ok: true, email, mode: "upsert" });
 }
