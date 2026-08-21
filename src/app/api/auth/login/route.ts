@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { ObjectId } from "mongodb";
-import { getDb } from "@/lib/mongodb";
+import { prisma } from "@/lib/prisma";
 import { ensureDemoAdmin } from "@/lib/admin";
 import { signAuthToken, setAuthCookie } from "@/lib/auth";
-
-type AdminDoc = {
-    _id: ObjectId;
-    email: string;
-    username: string;
-    passwordHash: string;
-    role: "admin";
-};
 
 export async function POST(req: NextRequest) {
     try {
@@ -31,11 +22,8 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const db = await getDb();
-        const col = db.collection<AdminDoc>("admins");
-
-        const admin = await col.findOne({
-            $or: [{ email: identifier }, { username: identifier }],
+        const admin = await prisma.admin.findFirst({
+            where: { OR: [{ email: identifier }, { username: identifier }] },
         });
 
         if (!admin || !admin.passwordHash) {
@@ -48,7 +36,7 @@ export async function POST(req: NextRequest) {
         }
 
         const token = await signAuthToken({
-            sub: admin._id.toString(),
+            sub: String(admin.id),
             role: "admin",
             email: admin.email,
             username: admin.username,

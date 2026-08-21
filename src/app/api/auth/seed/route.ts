@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getDb } from "@/lib/mongodb";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
     const secret = req.nextUrl.searchParams.get("secret") || "";
@@ -21,34 +21,31 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const db = await getDb();
-    const col = db.collection("admins");
-
     if (mode === "check") {
-        const exists = await col.findOne({ email });
+        const exists = await prisma.admin.findUnique({ where: { email } });
         return NextResponse.json({ ok: true, email, exists: !!exists });
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
     const passwordHash = await bcrypt.hash(password, 10);
 
-    await col.updateOne(
-        { email },
-        {
-            $set: {
-                email,
-                username,
-                passwordHash,
-                role: "admin",
-                updatedAt: now,
-                passwordChangedAt: now,
-            },
-            $setOnInsert: {
-                createdAt: now,
-            },
+    await prisma.admin.upsert({
+        where: { email },
+        update: {
+            username,
+            passwordHash,
+            role: "admin",
+            updatedAt: now,
+            passwordChangedAt: now,
         },
-        { upsert: true }
-    );
+        create: {
+            email,
+            username,
+            passwordHash,
+            role: "admin",
+            passwordChangedAt: now,
+        },
+    });
 
     return NextResponse.json({ ok: true, email, mode: "upsert" });
 }

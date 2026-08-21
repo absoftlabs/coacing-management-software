@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import { type Filter } from "mongodb";
-import type { SmsLogDoc } from "@/lib/sms/types";
-
-type SmsLogDb = Required<SmsLogDoc>;
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const audience = (searchParams.get("audience") || "").trim() as "" | "student" | "teacher";
 
-    const db = await getDb();
-    const col = db.collection<SmsLogDb>("sms_log");
+    const where: Prisma.SmsLogWhereInput = {};
+    if (audience) where.audience = audience;
 
-    const filter: Filter<SmsLogDb> = {};
-    if (audience) filter.audience = audience;
+    const items = await prisma.smsLog.findMany({
+        where,
+        orderBy: { sentAt: "desc" },
+        take: 200,
+    });
 
-    const items = await col.find(filter).sort({ sentAt: -1 }).limit(200).toArray();
-    return NextResponse.json(items.map(i => ({ ...i, _id: i._id?.toString() })));
+    return NextResponse.json(
+        items.map(({ id, batchName, templateId, ...rest }) => ({
+            ...rest,
+            _id: String(id),
+            batchId: batchName ?? undefined,
+            templateId: templateId !== null ? String(templateId) : undefined,
+        }))
+    );
 }

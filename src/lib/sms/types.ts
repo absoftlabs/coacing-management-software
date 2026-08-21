@@ -1,5 +1,4 @@
 // src/lib/sms/types.ts
-import type { ObjectId } from "mongodb";
 import type { ResultDoc } from "@/lib/types";
 
 
@@ -7,7 +6,7 @@ import type { ResultDoc } from "@/lib/types";
  * SMS Template document
  */
 export interface SmsTemplateDoc {
-    _id?: ObjectId; // optional when inserting, Mongo will auto-generate
+    _id?: string;
     templateName: string;
     templateBody: string;
     createdAt: string;
@@ -28,7 +27,7 @@ export type SmsStatus = "sent" | "failed" | "skip-no-phone";
  * SMS Log document
  */
 export interface SmsLogDoc {
-    _id?: ObjectId;
+    _id?: string;
     audience: SmsAudience;
 
     // audience-specific fields

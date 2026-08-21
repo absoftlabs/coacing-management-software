@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { ObjectId } from "mongodb";
-import { getDb } from "@/lib/mongodb";
+import { prisma } from "@/lib/prisma";
 import { getAuthFromRequest, signAuthToken, setAuthCookie } from "@/lib/auth";
-
-type AdminDoc = {
-    _id: ObjectId;
-    email: string;
-    username: string;
-    passwordHash: string;
-    role: "admin";
-    updatedAt?: string;
-    passwordChangedAt?: string;
-};
 
 export async function POST(req: NextRequest) {
     const auth = await getAuthFromRequest(req);
@@ -34,10 +23,8 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const db = await getDb();
-    const col = db.collection<AdminDoc>("admins");
-
-    const admin = await col.findOne({ _id: new ObjectId(auth.sub) });
+    const adminId = Number(auth.sub);
+    const admin = await prisma.admin.findUnique({ where: { id: adminId } });
     if (!admin) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -48,14 +35,14 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    const now = new Date().toISOString();
-    await col.updateOne(
-        { _id: admin._id },
-        { $set: { passwordHash, updatedAt: now, passwordChangedAt: now } }
-    );
+    const now = new Date();
+    await prisma.admin.update({
+        where: { id: admin.id },
+        data: { passwordHash, updatedAt: now, passwordChangedAt: now },
+    });
 
     const token = await signAuthToken({
-        sub: admin._id.toString(),
+        sub: String(admin.id),
         role: "admin",
         email: admin.email,
         username: admin.username,

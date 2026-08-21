@@ -1,13 +1,14 @@
 // src/app/api/attendance/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import { ObjectId, type Filter, type UpdateFilter } from "mongodb";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import { resolveBatchId, findStudentByCode } from "@/lib/dbHelpers";
 
 type AttendanceStatus = "Present" | "Absent";
 
 export type AttendanceDoc = {
-    _id?: ObjectId;
-    date: string;            // YYYY-MM-DD
+    _id?: string;
+    date: string;
     studentId: string;
     studentName: string;
     batch: string;
@@ -17,9 +18,30 @@ export type AttendanceDoc = {
 };
 
 function ymd(date?: string) {
-    // normalize to YYYY-MM-DD
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
     return new Date().toISOString().slice(0, 10);
+}
+
+function serialize(a: {
+    id: number;
+    date: string;
+    studentName: string;
+    student: { studentId: string };
+    batch: { name: string };
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+}) {
+    return {
+        _id: String(a.id),
+        date: a.date,
+        studentId: a.student.studentId,
+        studentName: a.studentName,
+        batch: a.batch.name,
+        status: a.status,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+    };
 }
 
 // GET /api/attendance?date=YYYY-MM-DD&status=Present|Absent&q=
@@ -29,63 +51,72 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status") as AttendanceStatus | null;
     const q = (searchParams.get("q") || "").trim();
 
-    const db = await getDb();
-    const col = db.collection<AttendanceDoc>("attendance");
-
-    const filter: Filter<AttendanceDoc> = { date };
-    if (status === "Present" || status === "Absent") filter.status = status;
+    const where: Prisma.AttendanceWhereInput = { date };
+    if (status === "Present" || status === "Absent") where.status = status;
     if (q) {
-        const rx = { $regex: q, $options: "i" };
-        filter.$or = [{ studentId: rx }, { studentName: rx }, { batch: rx }];
+        where.OR = [
+            { student: { studentId: { contains: q } } },
+            { studentName: { contains: q } },
+            { batch: { name: { contains: q } } },
+        ];
     }
 
-    const items = await col.find(filter).sort({ studentName: 1 }).toArray();
-    const rows = items.map(i => ({ ...i, _id: i._id!.toString() }));
-    return NextResponse.json(rows);
+    const items = await prisma.attendance.findMany({
+        where,
+        orderBy: { studentName: "asc" },
+        include: { batch: true, student: { select: { studentId: true } } },
+    });
+    return NextResponse.json(items.map(serialize));
 }
 
 // PUT /api/attendance  body: { date?, studentId, studentName, batch, status: "Present"|"Absent" }
 export async function PUT(req: NextRequest) {
-    const body = await req.json().catch(() => null) as Partial<AttendanceDoc> | null;
+    const body = (await req.json().catch(() => null)) as
+        | { date?: string; studentId?: string; studentName?: string; batch?: string; status?: string }
+        | null;
     if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
     const date = ymd(body.date);
-    const studentId = String(body.studentId || "").trim();
+    const studentCode = String(body.studentId || "").trim();
     const studentName = String(body.studentName || "").trim();
-    const batch = String(body.batch || "").trim();
+    const batchName = String(body.batch || "").trim();
     const status = body.status === "Present" || body.status === "Absent" ? body.status : null;
 
-    if (!studentId || !studentName || !batch || !status) {
+    if (!studentCode || !studentName || !batchName || !status) {
         return NextResponse.json({ error: "studentId, studentName, batch, status required" }, { status: 400 });
     }
 
-    const now = new Date().toISOString();
-    const db = await getDb();
-    const col = db.collection<AttendanceDoc>("attendance");
+    const student = await findStudentByCode(studentCode);
+    if (!student) {
+        return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
+    const batchId = await resolveBatchId(batchName);
 
-    // unique key: date + studentId
-    const filter: Filter<AttendanceDoc> = { date, studentId };
-    const update: UpdateFilter<AttendanceDoc> = {
-        $set: { date, studentId, studentName, batch, status, updatedAt: now },
-        $setOnInsert: { createdAt: now }
-    };
+    const attendance = await prisma.attendance.upsert({
+        where: { date_studentRefId: { date, studentRefId: student.id } },
+        update: { studentName, batchId, status },
+        create: { date, studentRefId: student.id, studentName, batchId, status },
+    });
 
-    const res = await col.updateOne(filter, update, { upsert: true });
-    return NextResponse.json({ ok: true, upsertedId: res.upsertedId?.toString() });
+    return NextResponse.json({ ok: true, upsertedId: String(attendance.id) });
 }
 
 // DELETE /api/attendance  body: { date?, studentId }
-// (optional) removes the record, if you prefer “unmark”
 export async function DELETE(req: NextRequest) {
-    const body = await req.json().catch(() => null) as { date?: string; studentId?: string } | null;
+    const body = (await req.json().catch(() => null)) as { date?: string; studentId?: string } | null;
     if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
     const date = ymd(body.date);
-    const studentId = String(body.studentId || "").trim();
-    if (!studentId) return NextResponse.json({ error: "studentId required" }, { status: 400 });
+    const studentCode = String(body.studentId || "").trim();
+    if (!studentCode) return NextResponse.json({ error: "studentId required" }, { status: 400 });
 
-    const db = await getDb();
-    const col = db.collection<AttendanceDoc>("attendance");
-    const res = await col.deleteOne({ date, studentId });
-    return NextResponse.json({ ok: res.deletedCount > 0 });
+    const student = await findStudentByCode(studentCode);
+    if (!student) return NextResponse.json({ ok: false });
+
+    try {
+        await prisma.attendance.delete({ where: { date_studentRefId: { date, studentRefId: student.id } } });
+        return NextResponse.json({ ok: true });
+    } catch {
+        return NextResponse.json({ ok: false });
+    }
 }

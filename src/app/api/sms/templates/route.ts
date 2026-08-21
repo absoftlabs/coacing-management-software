@@ -1,51 +1,23 @@
 // src/app/api/sms/templates/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import {
-    ObjectId,
-    type OptionalId,
-    type Filter,
-} from "mongodb";
-import type { SmsTemplateDoc } from "@/lib/sms/types";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
-/** DB shape (what’s stored in Mongo) */
-interface SmsTemplateDb {
-    _id: ObjectId;
-    templateName: string;
-    templateBody: string;
-    createdAt: string;
-    updatedAt: string;
+function serialize(t: { id: number }) {
+    return { ...t, _id: String(t.id) };
 }
-
-/** Insert shape (lets Mongo generate _id) */
-type SmsTemplateInsert = OptionalId<SmsTemplateDb>;
 
 // GET /api/sms/templates
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get("q") || "").trim();
 
-    const db = await getDb();
-    const col = db.collection<SmsTemplateDb>("sms_templates");
+    const where: Prisma.SmsTemplateWhereInput = q
+        ? { OR: [{ templateName: { contains: q } }, { templateBody: { contains: q } }] }
+        : {};
 
-    const filter: Filter<SmsTemplateDb> = {};
-    if (q) {
-        const rx = { $regex: q, $options: "i" };
-        filter.$or = [{ templateName: rx }, { templateBody: rx }];
-    }
-
-    const docs = await col.find(filter).sort({ updatedAt: -1 }).toArray();
-
-    // Return with ObjectId intact (matches SmsTemplateDoc if it expects ObjectId)
-    const rows: SmsTemplateDoc[] = docs.map((t) => ({
-        _id: t._id,
-        templateName: t.templateName,
-        templateBody: t.templateBody,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-    }));
-
-    return NextResponse.json(rows);
+    const docs = await prisma.smsTemplate.findMany({ where, orderBy: { updatedAt: "desc" } });
+    return NextResponse.json(docs.map(serialize));
 }
 
 // POST /api/sms/templates
@@ -64,29 +36,7 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const now = new Date().toISOString();
+    const created = await prisma.smsTemplate.create({ data: { templateName, templateBody } });
 
-    const db = await getDb();
-    const col = db.collection<OptionalId<SmsTemplateDb>>("sms_templates");
-
-    // ✅ Use the insert type that does NOT require _id
-    const insertDoc: SmsTemplateInsert = {
-        templateName,
-        templateBody,
-        createdAt: now,
-        updatedAt: now,
-    };
-
-    const res = await col.insertOne(insertDoc);
-
-    // Send back a normalized document (ObjectId preserved)
-    const created: SmsTemplateDoc = {
-        _id: res.insertedId,
-        templateName,
-        templateBody,
-        createdAt: now,
-        updatedAt: now,
-    };
-
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(serialize(created), { status: 201 });
 }

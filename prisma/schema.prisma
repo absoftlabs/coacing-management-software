@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id                Int       @id @default(autoincrement())
+  email             String    @unique
+  username          String    @unique
+  passwordHash      String
+  role              String    @default("admin")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  passwordChangedAt DateTime?
+
+  @@map("admins")
+}
+
+model Batch {
+  id         Int            @id @default(autoincrement())
+  name       String         @unique
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  students   Student[]
+  classes    ClassSession[]
+  results    Result[]
+  attendance Attendance[]
+
+  @@map("batches")
+}
+
+model Student {
+  id            Int          @id @default(autoincrement())
+  studentId     String       @unique
+  name          String
+  batchId       Int
+  batch         Batch        @relation(fields: [batchId], references: [id])
+  roll          String
+  division      String?
+  schoolName    String?
+  schoolRoll    String?
+  schoolSection String?
+  address       String?      @db.Text
+  fatherName    String?
+  motherName    String?
+  guardianName  String?
+  guardianPhone String?
+  gender        String?
+  photoUrl      String?      @db.Text
+  isSuspended   Boolean      @default(false)
+  birthDate     String?
+  courseFee     Float?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  fees          Fee[]
+  results       Result[]
+  attendance    Attendance[]
+
+  @@index([batchId])
+  @@map("students")
+}
+
+model Teacher {
+  id             Int      @id @default(autoincrement())
+  teacherCode    String?  @unique
+  name           String
+  phone          String?
+  imageUrl       String?  @db.Text
+  primarySubject String?
+  joinDate       String?
+  salary         Float?
+  isSuspended    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("teachers")
+}
+
+model ClassSession {
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String
+  teacher   String?
+  batchId   Int?
+  batch     Batch?   @relation(fields: [batchId], references: [id])
+  days      Json
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([batchId])
+  @@map("classes")
+}
+
+model Fee {
+  id           Int      @id @default(autoincrement())
+  studentRefId Int
+  student      Student  @relation(fields: [studentRefId], references: [id])
+  studentName  String
+  amount       Float
+  depositBy    String
+  receivedBy   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([studentRefId])
+  @@map("fees")
+}
+
+model Result {
+  id           Int             @id @default(autoincrement())
+  batchId      Int
+  batch        Batch           @relation(fields: [batchId], references: [id])
+  studentRefId Int
+  student      Student         @relation(fields: [studentRefId], references: [id])
+  studentName  String
+  resultType   String
+  examDate     DateTime?
+  totalMarks   Float
+  totalGain    Float
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  subjects     ResultSubject[]
+
+  @@index([batchId])
+  @@index([studentRefId])
+  @@map("results")
+}
+
+model ResultSubject {
+  id         Int    @id @default(autoincrement())
+  resultId   Int
+  result     Result @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  className  String
+  mcqTotal   Float  @default(0)
+  mcqGain    Float  @default(0)
+  quesTotal  Float  @default(0)
+  quesGain   Float  @default(0)
+  totalMarks Float
+  totalGain  Float
+
+  @@index([resultId])
+  @@map("result_subjects")
+}
+
+model Attendance {
+  id           Int      @id @default(autoincrement())
+  date         String
+  studentRefId Int
+  student      Student  @relation(fields: [studentRefId], references: [id])
+  studentName  String
+  batchId      Int
+  batch        Batch    @relation(fields: [batchId], references: [id])
+  status       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([date, studentRefId])
+  @@index([batchId])
+  @@map("attendance")
+}
+
+model SmsTemplate {
+  id           Int      @id @default(autoincrement())
+  templateName String
+  templateBody String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  logs         SmsLog[]
+
+  @@map("sms_templates")
+}
+
+model SmsLog {
+  id         Int          @id @default(autoincrement())
+  audience   String
+  batchName  String?
+  studentId  String?
+  teacherId  String?
+  templateId Int?
+  template   SmsTemplate? @relation(fields: [templateId], references: [id])
+  preview    String       @db.Text
+  phone      String
+  status     String
+  providerId String?
+  sentAt     DateTime
+  error      String?      @db.Text
+
+  @@index([templateId])
+  @@map("sms_log")
+}

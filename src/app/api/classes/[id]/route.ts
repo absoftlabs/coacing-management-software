@@ -1,75 +1,87 @@
 import { NextResponse, NextRequest } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import { ObjectId, type Filter, type UpdateFilter } from "mongodb";
+import { prisma } from "@/lib/prisma";
 import type { ClassDoc } from "@/lib/types";
+import type { Prisma } from "@prisma/client";
+import { resolveBatchId, prismaDeleteErrorResponse } from "@/lib/dbHelpers";
 
-type ClassDocDb = Omit<ClassDoc, "_id"> & { _id: ObjectId };
+function toId(id: string): number {
+    const n = Number(id);
+    if (!Number.isInteger(n)) throw new Error("Invalid id");
+    return n;
+}
 
-function oid(id: string) {
-    if (!ObjectId.isValid(id)) throw new Error("Invalid id");
-    return new ObjectId(id);
+function serialize(x: { id: number; batch: { name: string } | null; days: Prisma.JsonValue; [key: string]: unknown }) {
+    const { batch, days, ...rest } = x;
+    return { ...rest, _id: String(x.id), batch: batch?.name ?? "", days: Array.isArray(days) ? days : [] };
 }
 
 // GET /api/classes/:id
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     const { id } = await ctx.params;
-    const db = await getDb();
-    const col = db.collection<ClassDocDb>("classes");
+    let classId: number;
+    try {
+        classId = toId(id);
+    } catch {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
-    const item = await col.findOne({ _id: oid(id) } as Filter<ClassDocDb>);
+    const item = await prisma.classSession.findUnique({ where: { id: classId }, include: { batch: true } });
     if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    return NextResponse.json({ ...item, _id: item._id.toString() });
+    return NextResponse.json(serialize(item));
 }
 
 // PATCH /api/classes/:id
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     const { id } = await ctx.params;
-    const db = await getDb();
-    const col = db.collection<ClassDocDb>("classes");
+    let classId: number;
+    try {
+        classId = toId(id);
+    } catch {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
     const body = (await req.json().catch(() => null)) as Partial<ClassDoc> | null;
     if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
-    const allowed: (keyof ClassDoc)[] = ["name", "code", "teacher", "batch", "days", "isActive"];
-    const set: Partial<Omit<ClassDocDb, "_id">> = { updatedAt: new Date().toISOString() };
-
-    for (const f of allowed) {
-        if (body && Object.prototype.hasOwnProperty.call(body, f)) {
-            if (f === "days") {
-                const arr = body.days;
-                if (Array.isArray(arr)) {
-                    (set as Pick<ClassDocDb, "days">).days = arr.map(String);
-                }
-            } else {
-                const value = body[f];
-                if (value !== undefined) {
-                    (set as Record<typeof f, typeof value>)[f] = value as never;
-                }
-            }
-        }
+    const data: Prisma.ClassSessionUpdateInput = {};
+    if (typeof body.name === "string") data.name = body.name;
+    if (typeof body.code === "string") data.code = body.code;
+    if (typeof body.teacher === "string") data.teacher = body.teacher;
+    if (Array.isArray(body.days)) data.days = body.days.map(String);
+    if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+    if (typeof body.batch === "string") {
+        data.batch = body.batch.trim()
+            ? { connect: { id: await resolveBatchId(body.batch.trim()) } }
+            : { disconnect: true };
     }
 
-    const filter: Filter<ClassDocDb> = { _id: oid(id) };
-    const update: UpdateFilter<ClassDocDb> = { $set: set };
-    const res = await col.updateOne(filter, update);
-
-    if (!res.matchedCount) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    const updated = await col.findOne(filter);
-    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    return NextResponse.json({ ...updated, _id: updated._id.toString() });
+    try {
+        const updated = await prisma.classSession.update({
+            where: { id: classId },
+            data,
+            include: { batch: true },
+        });
+        return NextResponse.json(serialize(updated));
+    } catch {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 }
 
 // DELETE /api/classes/:id
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
     const { id } = await ctx.params;
-    const db = await getDb();
-    const col = db.collection<ClassDocDb>("classes");
+    let classId: number;
+    try {
+        classId = toId(id);
+    } catch {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
-    const res = await col.deleteOne({ _id: oid(id) } as Filter<ClassDocDb>);
-    if (!res.deletedCount) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    return NextResponse.json({ ok: true });
+    try {
+        await prisma.classSession.delete({ where: { id: classId } });
+        return NextResponse.json({ ok: true });
+    } catch (error) {
+        return prismaDeleteErrorResponse(error);
+    }
 }

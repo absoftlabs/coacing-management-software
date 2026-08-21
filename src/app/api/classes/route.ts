@@ -1,38 +1,32 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import { ClassDoc } from "@/lib/types";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/prisma";
+import type { ClassDoc } from "@/lib/types";
+import type { Prisma } from "@prisma/client";
+import { resolveBatchId } from "@/lib/dbHelpers";
+
+function serialize(x: { id: number; batch: { name: string } | null; days: Prisma.JsonValue; [key: string]: unknown }) {
+    const { batch, days, ...rest } = x;
+    return { ...rest, _id: String(x.id), batch: batch?.name ?? "", days: Array.isArray(days) ? days : [] };
+}
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
-    const q = (searchParams.get("q") || "").toLowerCase();
+    const q = (searchParams.get("q") || "").trim();
 
-    const db = await getDb();
-    const col = db.collection<ClassDoc>("classes");
-
-    const filter = q
+    const where: Prisma.ClassSessionWhereInput = q
         ? {
-            $or: [
-                { name: { $regex: q, $options: "i" } },
-                { code: { $regex: q, $options: "i" } },
-                { teacher: { $regex: q, $options: "i" } },
-                { batch: { $regex: q, $options: "i" } },  // <- batch search
+            OR: [
+                { name: { contains: q } },
+                { code: { contains: q } },
+                { teacher: { contains: q } },
+                { batch: { name: { contains: q } } },
             ],
         }
         : {};
 
-    const items = await col.find(filter).toArray();
+    const items = await prisma.classSession.findMany({ where, include: { batch: true } });
 
-    const rows = items.map((x) => ({
-        ...x,
-        _id: typeof x._id === "string"
-            ? x._id
-            : (x._id && typeof x._id === "object" && "toString" in x._id)
-                ? (x._id as ObjectId).toString()
-                : "",
-    }));
-
-    return NextResponse.json(rows);
+    return NextResponse.json(items.map(serialize));
 }
 
 export async function POST(req: Request) {
@@ -41,20 +35,20 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "name & code are required" }, { status: 400 });
     }
 
-    const now = new Date().toISOString();
-    const doc: ClassDoc = {
-        name: body.name.trim(),
-        code: body.code.trim(),
-        teacher: body.teacher?.trim() || "",
-        batch: body.batch?.trim() || "",      // <- batch set
-        days: Array.isArray(body.days) ? body.days : [],
-        isActive: body.isActive ?? true,
-        createdAt: now,
-        updatedAt: now,
-    };
+    const batchName = body.batch?.trim() || "";
+    const batchId = batchName ? await resolveBatchId(batchName) : undefined;
 
-    const db = await getDb();
-    const col = db.collection<ClassDoc>("classes");
-    const res = await col.insertOne(doc);
-    return NextResponse.json({ _id: res.insertedId.toString(), ...doc }, { status: 201 });
+    const created = await prisma.classSession.create({
+        data: {
+            name: body.name.trim(),
+            code: body.code.trim(),
+            teacher: body.teacher?.trim() || "",
+            batchId,
+            days: Array.isArray(body.days) ? body.days : [],
+            isActive: body.isActive ?? true,
+        },
+        include: { batch: true },
+    });
+
+    return NextResponse.json(serialize(created), { status: 201 });
 }

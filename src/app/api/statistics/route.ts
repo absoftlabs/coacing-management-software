@@ -1,44 +1,30 @@
 // src/app/api/statistics/route.ts
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { prisma } from "@/lib/prisma";
 import { getSmsBalance } from "@/lib/sms/smsNetClient";
 
 export async function GET() {
     try {
-        const db = await getDb();
+        const totalStudents = await prisma.student.count();
+        const totalTeachers = await prisma.teacher.count();
 
-        // Count total students
-        const totalStudents = await db.collection("students").countDocuments();
-
-        // Count total teachers
-        const totalTeachers = await db.collection("teachers").countDocuments();
-
-        // Calculate today's date (YYYY-MM-DD)
         const today = new Date().toISOString().slice(0, 10);
 
-        // Count present students (if you have attendance collection)
         let presentToday = 0;
         try {
-            presentToday = await db
-                .collection("attendance")
-                .countDocuments({ date: today, status: "Present" });
+            presentToday = await prisma.attendance.count({ where: { date: today, status: "Present" } });
         } catch {
-            presentToday = 0; // fallback if no collection yet
+            presentToday = 0;
         }
 
-        // Sum total collected fees
         let totalFees = 0;
         try {
-            const feesAgg = await db
-                .collection("fees")
-                .aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }])
-                .toArray();
-            totalFees = feesAgg[0]?.total ?? 0;
+            const agg = await prisma.fee.aggregate({ _sum: { amount: true } });
+            totalFees = agg._sum.amount ?? 0;
         } catch {
             totalFees = 0;
         }
 
-        // SMS balance from provider API
         let smsBalance = 0;
         try {
             const bal = await getSmsBalance();

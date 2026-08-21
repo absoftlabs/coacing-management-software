@@ -1,24 +1,13 @@
 // src/app/api/sms/send/student/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import { ObjectId, type OptionalUnlessRequiredId, type Filter } from "mongodb";
+import { prisma } from "@/lib/prisma";
 import { renderTemplate } from "@/lib/sms/renderTemplate";
 import { sendSmsNetBd } from "@/lib/sms/smsNetClient";
-import type { SmsLogDoc, SmsTemplateDoc } from "@/lib/sms/types";
-import type { ResultDoc } from "@/lib/types";
-
-type StudentDoc = {
-    _id: ObjectId;
-    studentId: string;
-    name: string;
-    roll?: string;
-    batch?: string;
-    guardianPhone?: string;
-};
+import type { ResultType } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => null)) as {
-        batchId: string;
+        batchId: string; // batch NAME, not a numeric id (matches historical field naming)
         studentId?: string;
         templateId: string;
         resultId: string;
@@ -33,38 +22,49 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const db = await getDb();
+    const templateIdNum = Number(body.templateId);
+    const resultIdNum = Number(body.resultId);
+    if (!Number.isInteger(templateIdNum) || !Number.isInteger(resultIdNum)) {
+        return NextResponse.json({ error: "Invalid templateId/resultId" }, { status: 400 });
+    }
 
-    const template = await db
-        .collection<Required<SmsTemplateDoc>>("sms_templates")
-        .findOne({ _id: new ObjectId(body.templateId) });
-    if (!template)
-        return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    const template = await prisma.smsTemplate.findUnique({ where: { id: templateIdNum } });
+    if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
-    const result = await db
-        .collection<ResultDoc>("results")
-        .findOne({ _id: new ObjectId(body.resultId) } as unknown as Filter<ResultDoc>);
-    if (!result)
-        return NextResponse.json({ error: "Result not found" }, { status: 404 });
+    const result = await prisma.result.findUnique({
+        where: { id: resultIdNum },
+        include: { batch: true, subjects: true },
+    });
+    if (!result) return NextResponse.json({ error: "Result not found" }, { status: 404 });
 
-    let students: StudentDoc[] = [];
+    const resultForRender = {
+        _id: String(result.id),
+        batch: result.batch.name,
+        studentId: "",
+        studentName: result.studentName,
+        resultType: result.resultType as ResultType,
+        examDate: result.examDate ? result.examDate.toISOString() : undefined,
+        subjects: result.subjects,
+        totalMarks: result.totalMarks,
+        totalGain: result.totalGain,
+        createdAt: result.createdAt.toISOString(),
+        updatedAt: result.updatedAt.toISOString(),
+    };
+
+    let students: { id: number; studentId: string; name: string; roll: string; guardianPhone: string | null }[] = [];
     if (body.studentId) {
-        const s = await db
-            .collection<StudentDoc>("students")
-            .findOne({ studentId: body.studentId, batch: body.batchId });
+        const s = await prisma.student.findFirst({
+            where: { studentId: body.studentId, batch: { name: body.batchId } },
+        });
         if (s) students = [s];
     } else {
-        students = await db
-            .collection<StudentDoc>("students")
-            .find({ batch: body.batchId })
-            .toArray();
+        students = await prisma.student.findMany({ where: { batch: { name: body.batchId } } });
     }
 
     if (!students.length) {
         return NextResponse.json({ error: "No students found" }, { status: 404 });
     }
 
-    const colLog = db.collection<Required<SmsLogDoc>>("sms_log");
     const sent: Array<{ studentId: string; phone: string; status: string }> = [];
 
     for (const s of students) {
@@ -76,36 +76,28 @@ export async function POST(req: NextRequest) {
 
         const msg = renderTemplate(template.templateBody, {
             coachingName: body.coachingName ?? "Your Coaching",
-            student: {
-                name: s.name,
-                studentId: s.studentId,
-                roll: s.roll,
-                batch: s.batch,
-            },
-            result,
+            student: { name: s.name, studentId: s.studentId, roll: s.roll, batch: body.batchId },
+            result: resultForRender,
         });
 
         const res = await sendSmsNetBd(phone, msg, body.senderId);
 
-        const log: OptionalUnlessRequiredId<SmsLogDoc> = {
-            audience: "student",
-            batchId: s.batch,
-            studentId: s.studentId,
-            templateId: template._id.toHexString(),
-            preview: msg,
-            phone,
-            status: res.ok ? "sent" : "failed",
-            providerId: res.requestId ?? "",
-            sentAt: new Date().toISOString(),
-            error: res.errorMessage ?? "",
-        };
-        await colLog.insertOne(log as Required<SmsLogDoc>);
-
-        sent.push({
-            studentId: s.studentId,
-            phone,
-            status: res.ok ? "sent" : "failed",
+        await prisma.smsLog.create({
+            data: {
+                audience: "student",
+                batchName: body.batchId,
+                studentId: s.studentId,
+                templateId: template.id,
+                preview: msg,
+                phone,
+                status: res.ok ? "sent" : "failed",
+                providerId: res.requestId ?? "",
+                sentAt: new Date(),
+                error: res.errorMessage ?? "",
+            },
         });
+
+        sent.push({ studentId: s.studentId, phone, status: res.ok ? "sent" : "failed" });
     }
 
     const failed = sent.filter((x) => x.status !== "sent").length;

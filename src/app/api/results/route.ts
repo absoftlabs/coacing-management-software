@@ -1,14 +1,9 @@
 // src/app/api/results/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import {
-    ObjectId,
-    type Filter,
-    type OptionalUnlessRequiredId,
-} from "mongodb";
-import type { ResultDoc, SubjectMark, ResultType } from "@/lib/types";
-
-type ResultDocDb = Omit<ResultDoc, "_id"> & { _id?: ObjectId };
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import type { SubjectMark, ResultType } from "@/lib/types";
+import { resolveBatchId, findStudentByCode } from "@/lib/dbHelpers";
 
 const ALLOWED_TYPES: readonly ResultType[] = [
     "Class Test",
@@ -18,7 +13,6 @@ const ALLOWED_TYPES: readonly ResultType[] = [
     "Custom",
 ];
 
-// ---------- helpers ----------
 function toNumber(v: unknown): number | undefined {
     if (v === null || v === undefined || v === "") return undefined;
     const n = Number(v);
@@ -48,24 +42,15 @@ function normalizeSubject(input: unknown): SubjectMark | null {
     };
 }
 
-function normalizePayload(
-    json: unknown
-):
-    | (Omit<
-        ResultDoc,
-        "_id" | "createdAt" | "updatedAt" | "totalMarks" | "totalGain"
-    > & { subjects: SubjectMark[] })
-    | null {
+function normalizePayload(json: unknown) {
     if (typeof json !== "object" || json === null) return null;
     const o = json as Record<string, unknown>;
 
     const batch = typeof o.batch === "string" ? o.batch.trim() : "";
     const studentId = typeof o.studentId === "string" ? o.studentId.trim() : "";
-    const studentName =
-        typeof o.studentName === "string" ? o.studentName.trim() : "";
+    const studentName = typeof o.studentName === "string" ? o.studentName.trim() : "";
     const resultType =
-        typeof o.resultType === "string" &&
-            (ALLOWED_TYPES as readonly string[]).includes(o.resultType)
+        typeof o.resultType === "string" && (ALLOWED_TYPES as readonly string[]).includes(o.resultType)
             ? (o.resultType as ResultType)
             : null;
     const examDate = typeof o.examDate === "string" ? o.examDate : undefined;
@@ -85,6 +70,36 @@ function normalizePayload(
     return { batch, studentId, studentName, resultType, examDate, subjects };
 }
 
+function serialize(r: {
+    id: number;
+    batch: { name: string };
+    student: { studentId: string };
+    studentName: string;
+    resultType: string;
+    examDate: Date | null;
+    totalMarks: number;
+    totalGain: number;
+    createdAt: Date;
+    updatedAt: Date;
+    subjects: { className: string; mcqTotal: number; mcqGain: number; quesTotal: number; quesGain: number; totalMarks: number; totalGain: number }[];
+}) {
+    return {
+        _id: String(r.id),
+        batch: r.batch.name,
+        studentId: r.student.studentId,
+        studentName: r.studentName,
+        resultType: r.resultType,
+        examDate: r.examDate ? r.examDate.toISOString() : undefined,
+        totalMarks: r.totalMarks,
+        totalGain: r.totalGain,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        subjects: r.subjects.map(({ className, mcqTotal, mcqGain, quesTotal, quesGain, totalMarks, totalGain }) => ({
+            className, mcqTotal, mcqGain, quesTotal, quesGain, totalMarks, totalGain,
+        })),
+    };
+}
+
 // ---------- GET /api/results ----------
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -93,32 +108,27 @@ export async function GET(req: NextRequest) {
     const studentId = (searchParams.get("studentId") || "").trim();
     const resultTypeParam = (searchParams.get("resultType") || "").trim();
 
-    const db = await getDb();
-    const col = db.collection<ResultDocDb>("results");
-
-    const filter: Filter<ResultDocDb> = {};
+    const where: Prisma.ResultWhereInput = {};
     if (q) {
-        const rx = { $regex: q, $options: "i" };
-        filter.$or = [{ studentId: rx }, { studentName: rx }, { batch: rx }];
+        where.OR = [
+            { student: { studentId: { contains: q } } },
+            { studentName: { contains: q } },
+            { batch: { name: { contains: q } } },
+        ];
     }
-    if (batch) filter.batch = batch;
-    if (studentId) filter.studentId = studentId;
-    if (
-        resultTypeParam &&
-        (ALLOWED_TYPES as readonly string[]).includes(resultTypeParam)
-    ) {
-        filter.resultType = resultTypeParam as ResultType;
+    if (batch) where.batch = { name: batch };
+    if (studentId) where.student = { studentId };
+    if (resultTypeParam && (ALLOWED_TYPES as readonly string[]).includes(resultTypeParam)) {
+        where.resultType = resultTypeParam;
     }
 
-    const items = await col.find(filter).sort({ createdAt: -1 }).toArray();
+    const items = await prisma.result.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        include: { batch: true, subjects: true, student: { select: { studentId: true } } },
+    });
 
-    // Map DB shape (_id: ObjectId) -> client shape (_id: string)
-    const rows: ResultDoc[] = items.map((i) => ({
-        ...i,
-        _id: i._id!.toString(),
-    }));
-
-    return NextResponse.json(rows);
+    return NextResponse.json(items.map(serialize));
 }
 
 // ---------- POST /api/results ----------
@@ -129,50 +139,38 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
-    // Compute overall totals from subjects
-    const totalMarks = normalized.subjects.reduce(
-        (acc: number, s: SubjectMark) => acc + (s.totalMarks ?? 0),
-        0
-    );
-    const totalGain = normalized.subjects.reduce(
-        (acc: number, s: SubjectMark) => acc + (s.totalGain ?? 0),
-        0
-    );
+    const student = await findStudentByCode(normalized.studentId);
+    if (!student) {
+        return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
+    const batchId = await resolveBatchId(normalized.batch);
 
-    const now = new Date().toISOString();
+    const totalMarks = normalized.subjects.reduce((acc, s) => acc + (s.totalMarks ?? 0), 0);
+    const totalGain = normalized.subjects.reduce((acc, s) => acc + (s.totalGain ?? 0), 0);
 
-    // Do not include _id; let MongoDB generate it
-    const insertDoc: OptionalUnlessRequiredId<ResultDocDb> = {
-        batch: normalized.batch,
-        studentId: normalized.studentId,
-        studentName: normalized.studentName,
-        resultType: normalized.resultType,
-        examDate: normalized.examDate,
-        subjects: normalized.subjects,
-        totalMarks,
-        totalGain,
-        createdAt: now,
-        updatedAt: now,
-    };
+    const created = await prisma.result.create({
+        data: {
+            batchId,
+            studentRefId: student.id,
+            studentName: normalized.studentName,
+            resultType: normalized.resultType,
+            examDate: normalized.examDate ? new Date(normalized.examDate) : undefined,
+            totalMarks,
+            totalGain,
+            subjects: {
+                create: normalized.subjects.map((s) => ({
+                    className: s.className,
+                    mcqTotal: s.mcqTotal ?? 0,
+                    mcqGain: s.mcqGain ?? 0,
+                    quesTotal: s.quesTotal ?? 0,
+                    quesGain: s.quesGain ?? 0,
+                    totalMarks: s.totalMarks ?? 0,
+                    totalGain: s.totalGain ?? 0,
+                })),
+            },
+        },
+        include: { batch: true, subjects: true, student: { select: { studentId: true } } },
+    });
 
-    const db = await getDb();
-    const col = db.collection<ResultDocDb>("results");
-    const res = await col.insertOne(insertDoc);
-
-    // Return client shape with string _id
-    const created: ResultDoc = {
-        _id: res.insertedId.toString(),
-        batch: insertDoc.batch,
-        studentId: insertDoc.studentId,
-        studentName: insertDoc.studentName,
-        resultType: insertDoc.resultType,
-        examDate: insertDoc.examDate,
-        subjects: insertDoc.subjects,
-        totalMarks: insertDoc.totalMarks!,
-        totalGain: insertDoc.totalGain!,
-        createdAt: insertDoc.createdAt!,
-        updatedAt: insertDoc.updatedAt!,
-    };
-
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(serialize(created), { status: 201 });
 }
