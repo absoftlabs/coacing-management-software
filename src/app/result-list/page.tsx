@@ -39,7 +39,6 @@ export default async function Page() {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-semibold">Result List</h1>
             <ResultList rows={rows} batches={batches} classes={classes} />
         </div>
     );

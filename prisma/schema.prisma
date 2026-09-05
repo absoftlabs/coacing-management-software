@@ -7,12 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Settings {
+  id          Int      @id @default(1)
+  orgLogo     String?  @db.LongText
+  smsApiKey   String?
+  smsSenderId String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}
+
 model Admin {
   id                Int       @id @default(autoincrement())
-  email             String    @unique
+  email             String?   @unique
   username          String    @unique
   passwordHash      String
   role              String    @default("admin")
+  teacherId         Int?      @unique
+  teacher           Teacher?  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   passwordChangedAt DateTime?
@@ -50,7 +62,7 @@ model Student {
   guardianName  String?
   guardianPhone String?
   gender        String?
-  photoUrl      String?      @db.Text
+  photoUrl      String?      @db.LongText
   isSuspended   Boolean      @default(false)
   birthDate     String?
   courseFee     Float?
@@ -60,7 +72,7 @@ model Student {
   results       Result[]
   attendance    Attendance[]
 
-  @@index([batchId])
+  @@unique([batchId, roll])
   @@map("students")
 }
 
@@ -69,13 +81,14 @@ model Teacher {
   teacherCode    String?  @unique
   name           String
   phone          String?
-  imageUrl       String?  @db.Text
+  imageUrl       String?  @db.LongText
   primarySubject String?
   joinDate       String?
   salary         Float?
   isSuspended    Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  account        Admin?
 
   @@map("teachers")
 }
@@ -92,7 +105,7 @@ model ClassSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([batchId])
+  @@unique([batchId, code])
   @@map("classes")
 }
 

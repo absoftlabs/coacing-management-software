@@ -3,7 +3,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ResultDoc, SubjectMark, ResultType } from "@/lib/types";
 import type { Prisma } from "@prisma/client";
-import { resolveBatchId, findStudentByCode, prismaDeleteErrorResponse } from "@/lib/dbHelpers";
+import { resolveBatchId, findStudentByCode, prismaDeleteErrorResponse, prismaUpdateErrorResponse } from "@/lib/dbHelpers";
 
 function toId(id: string): number {
     const n = Number(id);
@@ -154,8 +154,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
             include: { batch: true, subjects: true, student: { select: { studentId: true } } },
         });
         return NextResponse.json(serialize(updated));
-    } catch {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    } catch (error) {
+        return prismaUpdateErrorResponse(error);
     }
 }
 

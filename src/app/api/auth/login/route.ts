@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { ensureDemoAdmin } from "@/lib/admin";
 import { signAuthToken, setAuthCookie } from "@/lib/auth";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
     try {
-        await ensureDemoAdmin();
+        if (!rateLimit(`login:${clientIp(req)}`, 10, 60_000)) {
+            return NextResponse.json({ error: "Too many attempts. Try again shortly." }, { status: 429 });
+        }
 
         const body = (await req.json().catch(() => null)) as
             | { identifier?: string; password?: string }
@@ -24,33 +26,38 @@ export async function POST(req: NextRequest) {
 
         const admin = await prisma.admin.findFirst({
             where: { OR: [{ email: identifier }, { username: identifier }] },
+            include: { teacher: true },
         });
 
-        if (!admin || !admin.passwordHash) {
+        // Always run bcrypt.compare (against a dummy hash when no admin matches)
+        // so a missing-account response takes the same time as a wrong-password one.
+        const hash = admin?.passwordHash ?? "$2b$10$CwTycUXWue0Thq9StjUM0uJ8s34SNFqOhKQpjeTVnGvGtfJC4nOTC";
+        const ok = await bcrypt.compare(password, hash);
+        if (!admin || !ok) {
             return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
         }
 
-        const ok = await bcrypt.compare(password, admin.passwordHash);
-        if (!ok) {
-            return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+        if (admin.role === "teacher" && admin.teacher?.isSuspended) {
+            return NextResponse.json({ error: "This account has been suspended" }, { status: 403 });
         }
 
+        const role = admin.role === "teacher" ? "teacher" : "admin";
         const token = await signAuthToken({
             sub: String(admin.id),
-            role: "admin",
-            email: admin.email,
+            role,
+            email: admin.email ?? undefined,
             username: admin.username,
+            teacherId: admin.teacherId ?? undefined,
         });
 
         const res = NextResponse.json({
             ok: true,
-            admin: { email: admin.email, username: admin.username },
+            admin: { email: admin.email, username: admin.username, role },
         });
         setAuthCookie(res, token);
         return res;
     } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
         console.error("POST /api/auth/login error:", err);
-        return NextResponse.json({ error: "Login failed", detail: msg }, { status: 500 });
+        return NextResponse.json({ error: "Login failed" }, { status: 500 });
     }
 }

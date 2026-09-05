@@ -1,9 +1,10 @@
 // src/app/sms/templates/page.tsx
 "use client";
 
-import SmsTemplateForm, { SmsTemplateShape } from "@/components/SMS/SmsTemplateForm";
-import SmsTemplateList, { SmsTemplateRow } from "@/components/SMS/SmsTemplateList";
 import { useEffect, useState } from "react";
+import SmsTemplateForm, { type SmsTemplateShape } from "@/components/SMS/SmsTemplateForm";
+import SmsTemplateList, { type SmsTemplateRow } from "@/components/SMS/SmsTemplateList";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SmsTemplatesPage() {
     const [templates, setTemplates] = useState<SmsTemplateShape[]>([]);
@@ -25,32 +26,41 @@ export default function SmsTemplatesPage() {
         }
     }
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        load();
+    }, []);
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card bg-base-100 shadow-xl">
-                <div className="card-body">
-                    <h2 className="card-title">{editing ? "Edit Template" : "Create Template"}</h2>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>{editing ? "Edit Template" : "Create Template"}</CardTitle>
+                </CardHeader>
+                <CardContent>
                     <SmsTemplateForm
                         initial={editing ?? undefined}
-                        onSaved={() => { setEditing(null); load(); }}
+                        onSaved={() => {
+                            setEditing(null);
+                            load();
+                        }}
                         onCancel={() => setEditing(null)}
                     />
-                </div>
-            </div>
+                </CardContent>
+            </Card>
 
-            <div className="card bg-base-100 shadow-xl">
-                <div className="card-body">
-                    <h2 className="card-title">SMS Templates</h2>
+            <Card>
+                <CardHeader>
+                    <CardTitle>SMS Templates</CardTitle>
+                </CardHeader>
+                <CardContent>
                     <SmsTemplateList
                         rows={templates.filter((t): t is SmsTemplateRow => t._id !== undefined)}
                         loading={loading}
                         onEdit={(tpl) => setEditing(tpl)}
                         onDeleted={load}
                     />
-                </div>
-            </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

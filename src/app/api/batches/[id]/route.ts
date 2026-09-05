@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { prismaDeleteErrorResponse } from "@/lib/dbHelpers";
+import { prismaDeleteErrorResponse, prismaUpdateErrorResponse } from "@/lib/dbHelpers";
 
 function toId(id: string): number {
     const n = Number(id);
@@ -48,8 +48,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     try {
         const item = await prisma.batch.update({ where: { id: batchId }, data: { name } });
         return NextResponse.json(serialize(item));
-    } catch {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    } catch (error) {
+        return prismaUpdateErrorResponse(error);
     }
 }
 

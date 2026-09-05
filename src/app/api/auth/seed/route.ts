@@ -1,12 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
+
+function timingSafeEqualString(a: string, b: string): boolean {
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) return false;
+    return timingSafeEqual(bufA, bufB);
+}
 
 export async function POST(req: NextRequest) {
-    const secret = req.nextUrl.searchParams.get("secret") || "";
+    // Disabled in production unless explicitly opted into (one-time setup only).
+    const inProduction = process.env.NODE_ENV === "production";
+    const allowInProd = process.env.ALLOW_SEED_IN_PRODUCTION === "true";
+    if (inProduction && !allowInProd) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (!rateLimit(`seed:${clientIp(req)}`, 10, 60_000)) {
+        return NextResponse.json({ error: "Too many attempts. Try again shortly." }, { status: 429 });
+    }
+
+    const secret = req.headers.get("x-seed-secret") || "";
     const mode = (req.nextUrl.searchParams.get("mode") || "upsert").toLowerCase();
     const expected = process.env.SEED_SECRET || "";
-    if (!expected || secret !== expected) {
+    if (!expected || !timingSafeEqualString(secret, expected)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

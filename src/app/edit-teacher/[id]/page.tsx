@@ -1,7 +1,7 @@
 import { api } from "@/lib/baseUrl";
 import type { TeacherDoc } from "@/lib/types";
 import EditTeacher from "@/components/Teacher/EditTeacher";
-
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 async function fetchItem(id: string): Promise<TeacherDoc | null> {
     try {
@@ -13,8 +13,17 @@ async function fetchItem(id: string): Promise<TeacherDoc | null> {
     }
 }
 
-export default async function Page({ params }: { params: { id: string } }) {
-    const item = await fetchItem(params.id);
-    if (!item) return <div className="p-6">Not found</div>;
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const item = await fetchItem(id);
+    if (!item) {
+        return (
+            <div className="mx-auto max-w-3xl">
+                <Alert variant="destructive">
+                    <AlertDescription>Teacher not found.</AlertDescription>
+                </Alert>
+            </div>
+        );
+    }
     return <EditTeacher item={item} />;
 }

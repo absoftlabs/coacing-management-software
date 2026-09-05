@@ -1,16 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 
 export default function ChangePasswordPage() {
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState("");
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        setMessage("");
         setLoading(true);
         try {
             const res = await fetch("/api/auth/change-password", {
@@ -20,10 +28,10 @@ export default function ChangePasswordPage() {
             });
             if (!res.ok) {
                 const j = (await res.json().catch(() => ({}))) as { error?: string };
-                setMessage(j.error ?? "Failed to change password");
+                toast.error(j.error ?? "Failed to change password");
                 return;
             }
-            setMessage("✅ Password updated");
+            toast.success("Password updated");
             setCurrentPassword("");
             setNewPassword("");
         } finally {
@@ -32,40 +40,39 @@ export default function ChangePasswordPage() {
     }
 
     return (
-        <div className="max-w-md">
-            <h1 className="text-2xl font-semibold mb-4">Change Password</h1>
-            <form className="space-y-4" onSubmit={onSubmit}>
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Current Password</label>
-                    <input
-                        className="input input-bordered w-full rounded-full px-5"
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        required
-                    />
-                </div>
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">New Password</label>
-                    <input
-                        className="input input-bordered w-full rounded-full px-5"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        required
-                        minLength={8}
-                    />
-                    <div className="text-xs opacity-60">Minimum 8 characters</div>
-                </div>
-                {message && (
-                    <div className={message.startsWith("✅") ? "text-success" : "text-error"}>
-                        {message}
+        <Card className="max-w-md">
+            <CardHeader>
+                <CardTitle className="text-2xl">Change Password</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <form className="space-y-4" onSubmit={onSubmit}>
+                    <div className="space-y-2">
+                        <Label htmlFor="currentPassword">Current Password</Label>
+                        <Input
+                            id="currentPassword"
+                            type="password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            required
+                        />
                     </div>
-                )}
-                <button className="btn btn-primary" disabled={loading}>
-                    {loading ? "Updating..." : "Update Password"}
-                </button>
-            </form>
-        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="newPassword">New Password</Label>
+                        <Input
+                            id="newPassword"
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            required
+                            minLength={8}
+                        />
+                        <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+                    </div>
+                    <Button type="submit" disabled={loading}>
+                        {loading ? "Updating..." : "Update Password"}
+                    </Button>
+                </form>
+            </CardContent>
+        </Card>
     );
 }

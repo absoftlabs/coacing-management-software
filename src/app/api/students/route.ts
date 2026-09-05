@@ -1,8 +1,8 @@
 // src/app/api/students/route.ts
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { Division, Section, Gender } from "@/lib/types";
-import type { Prisma } from "@prisma/client";
 import { resolveBatchId } from "@/lib/dbHelpers";
 
 function random5(): string {
@@ -111,45 +111,53 @@ export async function POST(req: Request): Promise<NextResponse> {
 
         const batchId = await resolveBatchId(batchName);
 
-        // allocate unique studentId (PCC-xxxxx)
-        let studentId = "";
-        for (let i = 0; i < 10; i++) {
-            const candidate = `PCC-${random5()}`;
-            const exists = await prisma.student.findUnique({ where: { studentId: candidate } });
-            if (!exists) {
-                studentId = candidate;
-                break;
+        const studentData = {
+            name,
+            batchId,
+            roll,
+            division,
+            schoolName: (body.schoolName as string) ?? "",
+            schoolRoll: (body.schoolRoll as string) ?? "",
+            schoolSection,
+            address: (body.address as string) ?? "",
+            fatherName: (body.fatherName as string) ?? "",
+            motherName: (body.motherName as string) ?? "",
+            guardianName: (body.guardianName as string) ?? "",
+            guardianPhone: (body.guardianPhone as string) ?? "",
+            gender,
+            photoUrl: (body.photoUrl as string) ?? "",
+            isSuspended: !!body.isSuspended,
+            birthDate,
+            courseFee,
+        };
+
+        // Allocate a unique studentId (PCC-xxxxx) by trying to create and
+        // retrying on a collision, rather than check-then-create (which races
+        // under concurrent signups).
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const studentId = `PCC-${random5()}`;
+            try {
+                const created = await prisma.student.create({
+                    data: { studentId, ...studentData },
+                    include: { batch: true },
+                });
+                return NextResponse.json(serialize(created), { status: 201 });
+            } catch (error) {
+                if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+                    const target = (error.meta?.target as string[] | undefined) ?? [];
+                    if (target.includes("studentId")) continue; // collision, retry with a new candidate
+                    if (target.includes("roll")) {
+                        return NextResponse.json(
+                            { error: "This roll number is already used in the selected batch" },
+                            { status: 409 }
+                        );
+                    }
+                }
+                throw error;
             }
         }
-        if (!studentId) {
-            return NextResponse.json({ error: "Failed to allocate studentId. Try again." }, { status: 500 });
-        }
 
-        const created = await prisma.student.create({
-            data: {
-                studentId,
-                name,
-                batchId,
-                roll,
-                division,
-                schoolName: (body.schoolName as string) ?? "",
-                schoolRoll: (body.schoolRoll as string) ?? "",
-                schoolSection,
-                address: (body.address as string) ?? "",
-                fatherName: (body.fatherName as string) ?? "",
-                motherName: (body.motherName as string) ?? "",
-                guardianName: (body.guardianName as string) ?? "",
-                guardianPhone: (body.guardianPhone as string) ?? "",
-                gender,
-                photoUrl: (body.photoUrl as string) ?? "",
-                isSuspended: !!body.isSuspended,
-                birthDate,
-                courseFee,
-            },
-            include: { batch: true },
-        });
-
-        return NextResponse.json(serialize(created), { status: 201 });
+        return NextResponse.json({ error: "Failed to allocate studentId. Try again." }, { status: 500 });
     } catch (error) {
         console.error("POST /api/students error:", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });

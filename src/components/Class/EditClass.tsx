@@ -1,7 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const DAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
@@ -17,16 +26,30 @@ type ClassItem = {
 
 export default function EditClass({ item }: { item: ClassItem }) {
     const router = useRouter();
-    const [msg, setMsg] = useState("");
+    const [error, setError] = useState("");
+    const [days, setDays] = useState<Set<string>>(new Set(item.days || []));
+    const [isActive, setIsActive] = useState(item.isActive ?? true);
+    const [saving, setSaving] = useState(false);
+
+    function toggleDay(day: string, checked: boolean) {
+        setDays((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(day);
+            else next.delete(day);
+            return next;
+        });
+    }
 
     async function onSubmit(fd: FormData) {
+        setSaving(true);
+        setError("");
         const payload = {
             name: String(fd.get("name") || "").trim(),
             code: String(fd.get("code") || "").trim(),
             teacher: String(fd.get("teacher") || "").trim(),
             batch: String(fd.get("batch") || "").trim(),
-            days: DAYS.filter((d) => fd.getAll("days").includes(d)),
-            isActive: fd.get("isActive") === "on",
+            days: DAYS.filter((d) => days.has(d)),
+            isActive,
         };
 
         const res = await fetch(`/api/classes/${item._id}`, {
@@ -36,79 +59,70 @@ export default function EditClass({ item }: { item: ClassItem }) {
         });
 
         if (res.ok) {
-            setMsg("✅ Updated");
+            toast.success("Class updated");
             router.push("/class-list");
             router.refresh();
         } else {
-            const j = await res.json().catch(() => ({}));
-            setMsg("❌ " + (j.error || "Failed to update"));
+            const j = await res.json().catch(() => ({} as { error?: string }));
+            setError(j.error || "Failed to update");
         }
+        setSaving(false);
     }
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6">
-            <h1 className="text-2xl font-semibold">Edit Class/Subject</h1>
-
-            <form className="card bg-base-100 shadow-xl" action={async (fd) => onSubmit(fd)}>
-                <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="form-control">
-                        <label className="label"><span className="label-text">Class Name *</span></label>
-                        <input name="name" defaultValue={item.name} required className="input input-bordered" />
-                    </div>
-
-                    <div className="form-control">
-                        <label className="label"><span className="label-text">Class Code *</span></label>
-                        <input name="code" defaultValue={item.code} required className="input input-bordered" />
-                    </div>
-
-                    <div className="form-control">
-                        <label className="label"><span className="label-text">Teacher</span></label>
-                        <input name="teacher" defaultValue={item.teacher || ""} className="input input-bordered" />
-                    </div>
-
-                    <div className="form-control">
-                        <label className="label"><span className="label-text">Batch Name</span></label>
-                        <input name="batch" defaultValue={item.batch || ""} className="input input-bordered" />
-                    </div>
-
-                    <div className="form-control md:col-span-2">
-                        <label className="label"><span className="label-text">Days</span></label>
-                        <div className="flex flex-wrap gap-2">
-                            {DAYS.map((d) => (
-                                <label key={d} className="label cursor-pointer gap-2 border rounded-box px-3 py-2">
-                                    <input
-                                        type="checkbox"
-                                        name="days"
-                                        value={d}
-                                        defaultChecked={(item.days || []).includes(d)}
-                                        className="checkbox checkbox-sm"
-                                    />
-                                    <span className="label-text">{d}</span>
-                                </label>
-                            ))}
+        <div className="mx-auto max-w-3xl space-y-6">
+            <Card>
+                <CardContent>
+                    <form className="grid grid-cols-1 gap-4 md:grid-cols-2" action={(fd) => onSubmit(fd)}>
+                        <div className="space-y-2">
+                            <Label htmlFor="name">Class Name *</Label>
+                            <Input id="name" name="name" defaultValue={item.name} required />
                         </div>
-                    </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="code">Class Code *</Label>
+                            <Input id="code" name="code" defaultValue={item.code} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="teacher">Teacher</Label>
+                            <Input id="teacher" name="teacher" defaultValue={item.teacher || ""} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="batch">Batch Name</Label>
+                            <Input id="batch" name="batch" defaultValue={item.batch || ""} />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label>Days</Label>
+                            <div className="flex flex-wrap gap-3">
+                                {DAYS.map((d) => (
+                                    <label key={d} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                                        <Checkbox checked={days.has(d)} onCheckedChange={(c) => toggleDay(d, c === true)} />
+                                        {d}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between rounded-md border px-3 py-2 md:col-span-2">
+                            <Label htmlFor="isActive">Active</Label>
+                            <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
+                        </div>
 
-                    <div className="form-control md:col-span-2">
-                        <label className="label cursor-pointer">
-                            <span className="label-text">Active</span>
-                            <input
-                                type="checkbox"
-                                name="isActive"
-                                defaultChecked={item.isActive ?? true}
-                                className="toggle toggle-primary"
-                            />
-                        </label>
-                    </div>
-                </div>
+                        {error && (
+                            <Alert variant="destructive" className="md:col-span-2">
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
 
-                <div className="card-actions justify-end p-6 pt-0">
-                    <a href="/class-list" className="btn btn-ghost">Cancel</a>
-                    <button className="btn btn-primary">Update</button>
-                </div>
-
-                {msg && <div className="px-6 pb-6 -mt-2 text-sm">{msg}</div>}
-            </form>
+                        <div className="flex justify-end gap-2 md:col-span-2">
+                            <Link href="/class-list" className={buttonVariants({ variant: "ghost" })}>
+                                Cancel
+                            </Link>
+                            <Button type="submit" disabled={saving}>
+                                {saving ? "Saving..." : "Update"}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 }

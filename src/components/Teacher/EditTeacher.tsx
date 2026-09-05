@@ -3,25 +3,36 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
+import { toast } from "sonner";
 import type { TeacherDoc } from "@/lib/types";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function EditTeacher({ item }: { item: TeacherDoc }) {
     const router = useRouter();
-    const [msg, setMsg] = useState("");
+    const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
     const [imageUrl, setImageUrl] = useState<string>(item.imageUrl || "");
 
     function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
         const f = e.target.files?.[0];
-        if (!f) { setImageUrl(item.imageUrl || ""); return; }
+        if (!f) {
+            setImageUrl(item.imageUrl || "");
+            return;
+        }
         const reader = new FileReader();
         reader.onload = () => setImageUrl(String(reader.result || ""));
         reader.readAsDataURL(f);
     }
 
     async function onSubmit(fd: FormData) {
-        setSaving(true); setMsg("");
+        setSaving(true);
+        setError("");
         const payload = {
             name: String(fd.get("name") || "").trim(),
             phone: String(fd.get("phone") || "").trim(),
@@ -31,8 +42,9 @@ export default function EditTeacher({ item }: { item: TeacherDoc }) {
             salary: Number(fd.get("salary") || "") || undefined,
         };
         if (!payload.name || !payload.primarySubject) {
-            setMsg("❌ Name & Primary Subject required");
-            setSaving(false); return;
+            setError("Name & Primary Subject required");
+            setSaving(false);
+            return;
         }
         const res = await fetch(`/api/teachers/${item._id}`, {
             method: "PATCH",
@@ -40,66 +52,78 @@ export default function EditTeacher({ item }: { item: TeacherDoc }) {
             body: JSON.stringify(payload),
         });
         if (res.ok) {
+            toast.success("Teacher updated");
             router.push("/teacher-list");
             router.refresh();
         } else {
             const j = await res.json().catch(() => ({} as { error?: string }));
-            setMsg("❌ " + (j.error || "Failed to update"));
+            setError(j.error || "Failed to update");
             setSaving(false);
         }
     }
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6">
-            <h1 className="text-2xl font-semibold">Edit Teacher</h1>
+        <div className="mx-auto max-w-3xl space-y-6">
+            <Card>
+                <CardContent>
+                    <form className="grid grid-cols-1 gap-4 md:grid-cols-2" action={(fd) => onSubmit(fd)}>
+                        <div className="space-y-2">
+                            <Label htmlFor="name">
+                                Teacher Name <span className="text-destructive">*</span>
+                            </Label>
+                            <Input id="name" name="name" defaultValue={item.name} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="phone">
+                                Phone <span className="text-destructive">*</span>
+                            </Label>
+                            <Input id="phone" name="phone" defaultValue={item.phone} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="primarySubject">
+                                Primary Subject <span className="text-destructive">*</span>
+                            </Label>
+                            <Input id="primarySubject" name="primarySubject" defaultValue={item.primarySubject} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="joinDate">Join Date</Label>
+                            <Input id="joinDate" type="date" name="joinDate" defaultValue={item.joinDate || ""} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="salary">Salary</Label>
+                            <Input id="salary" name="salary" type="number" defaultValue={item.salary ?? ""} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="photo">Teacher Image</Label>
+                            <Input id="photo" type="file" accept="image/*" onChange={onPhoto} />
+                            {(imageUrl || item.imageUrl) && (
+                                <Image
+                                    src={imageUrl || item.imageUrl || ""}
+                                    alt="preview"
+                                    width={64}
+                                    height={64}
+                                    className="mt-2 size-16 rounded-md object-cover"
+                                />
+                            )}
+                        </div>
 
-            <form className="card bg-base-100 shadow-xl" action={async fd => onSubmit(fd)}>
-                <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="form-control md:col-span-1">
-                        <label className="mb-1 block text-sm font-medium">Teacher Name <span className="text-error">*</span></label>
-                        <input name="name" defaultValue={item.name} required className="input input-bordered w-full" />
-                    </div>
-                    <div className="form-control md:col-span-1">
-                        <label className="mb-1 block text-sm font-medium">Phone <span className="text-error">*</span></label>
-                        <input name="phone" defaultValue={item.phone} required className="input input-bordered w-full" />
-                    </div>
-
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Primary Subject <span className="text-error">*</span></label>
-                        <input name="primarySubject" defaultValue={item.primarySubject} required className="input input-bordered w-full" />
-                    </div>
-
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Join Date</label>
-                        <input type="date" name="joinDate" defaultValue={item.joinDate || ""} className="input input-bordered w-full" />
-                    </div>
-
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Salary</label>
-                        <input name="salary" defaultValue={item.salary ?? ""} className="input input-bordered w-full" />
-                    </div>
-
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Teacher Image</label>
-                        <input type="file" accept="image/*" className="file-input file-input-bordered w-full" onChange={onPhoto} />
-                        {(imageUrl || item.imageUrl) && (
-                            <div className="mt-2">
-                                <Image src={imageUrl || item.imageUrl || ""} alt="preview" width={64} height={64}
-                                    className="mask mask-squircle w-16 h-16 object-cover" />
-                            </div>
+                        {error && (
+                            <Alert variant="destructive" className="md:col-span-2">
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
                         )}
-                    </div>
 
-                    <div className="md:col-span-2 flex justify-end gap-2 pt-2">
-                        <a href="/teacher-list" className="btn btn-ghost">Cancel</a>
-                        <button className="btn btn-primary" disabled={saving}>
-                            {saving ? "Saving..." : "Update"}
-                        </button>
-                    </div>
-
-                    {msg && <div className="md:col-span-2 text-sm">{msg}</div>}
-                </div>
-            </form>
+                        <div className="flex justify-end gap-2 md:col-span-2">
+                            <Link href="/teacher-list" className={buttonVariants({ variant: "ghost" })}>
+                                Cancel
+                            </Link>
+                            <Button type="submit" disabled={saving}>
+                                {saving ? "Saving..." : "Update"}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 }

@@ -3,6 +3,26 @@
 
 import { IconChecks, IconX } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
 type StudentRow = {
     _id: string;
@@ -39,17 +59,10 @@ export default function MarkAttendance({ batches }: Props) {
         (async () => {
             setLoading(true);
             try {
-                // fetch students by batch
                 const res = await fetch(`/api/students?batch=${encodeURIComponent(batch)}`, { cache: "no-store" });
-                const list = (await res.json()) as Array<{
-                    _id: string;
-                    studentId: string;
-                    name: string;
-                    batch: string;
-                }>;
+                const list = (await res.json()) as StudentRow[];
                 setStudents(list);
 
-                // fetch current date attendance snapshot
                 const attRes = await fetch(`/api/attendance?date=${date}`, { cache: "no-store" });
                 const attList = (await attRes.json()) as Array<{ studentId: string; status: "Present" | "Absent" }>;
 
@@ -72,7 +85,7 @@ export default function MarkAttendance({ batches }: Props) {
     }, [batch, date]);
 
     async function mark(student: StudentRow, status: "Present" | "Absent") {
-        await fetch("/api/attendance", {
+        const res = await fetch("/api/attendance", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -84,7 +97,11 @@ export default function MarkAttendance({ batches }: Props) {
             }),
         });
 
-        // optimistic update
+        if (!res.ok) {
+            toast.error("Failed to save attendance");
+            return;
+        }
+
         setPresentIds((prev) => {
             const next = new Set(prev);
             if (status === "Present") next.add(student.studentId);
@@ -100,43 +117,47 @@ export default function MarkAttendance({ batches }: Props) {
     }
 
     return (
-        <div className="card bg-base-100 shadow-xl">
-            <div className="card-body">
-                <div className="flex flex-wrap gap-5 items-end">
-                    <div>
-                        <label className="block text-sm mb-1">Batch</label>
-                        <select className="select select-bordered px-4 rounded-full" value={batch} onChange={(e) => setBatch(e.target.value)}>
-                            <option className="ps-5" value="">-- Select Batch --</option>
-                            {batches.map((b) => (
-                                <option key={b} value={b}>
-                                    {b}
-                                </option>
-                            ))}
-                        </select>
+        <Card>
+            <CardContent>
+                <div className="flex flex-wrap items-end gap-5">
+                    <div className="space-y-2">
+                        <Label>Batch</Label>
+                        <Select value={batch} onValueChange={(v) => setBatch(v ?? "")}>
+                            <SelectTrigger className="w-48">
+                                <SelectValue placeholder="-- Select Batch --" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {batches.map((b) => (
+                                    <SelectItem key={b} value={b}>
+                                        {b}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    <div>
-                        <label className="block text-sm mb-1">Date</label>
-                        <input className="input input-bordered" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                    <div className="space-y-2">
+                        <Label htmlFor="attDate">Date</Label>
+                        <Input id="attDate" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                     </div>
                 </div>
 
-                <div className="overflow-x-auto mt-4">
-                    <table className="table table-zebra">
-                        <thead>
-                            <tr>
-                                <th>Action</th>
-                                <th>Student ID</th>
-                                <th>Name</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                <div className="mt-4 overflow-x-auto rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Action</TableHead>
+                                <TableHead>Student ID</TableHead>
+                                <TableHead>Name</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {loading && (
-                                <tr>
-                                    <td colSpan={3} className="py-10 text-center opacity-60">
+                                <TableRow>
+                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                                         Loading...
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             )}
 
                             {!loading &&
@@ -144,42 +165,44 @@ export default function MarkAttendance({ batches }: Props) {
                                     const isP = presentIds.has(s.studentId);
                                     const isA = absentIds.has(s.studentId);
                                     return (
-                                        <tr key={s._id}>
-                                            <td>
-                                                <div className="join">
-                                                    <button
-                                                        className={`btn btn-sm join-item ${isP ? "btn-success text-white" : ""}`}
+                                        <TableRow key={s._id}>
+                                            <TableCell>
+                                                <div className="flex gap-1.5">
+                                                    <Button
+                                                        size="icon-sm"
+                                                        variant={isP ? "default" : "outline"}
                                                         title="Mark Present"
                                                         onClick={() => mark(s, "Present")}
                                                     >
-                                                        <IconChecks />
-                                                    </button>
-                                                    <button
-                                                        className={`btn btn-sm join-item ${isA ? "btn-error text-white" : ""}`}
+                                                        <IconChecks className="size-4" />
+                                                    </Button>
+                                                    <Button
+                                                        size="icon-sm"
+                                                        variant={isA ? "destructive" : "outline"}
                                                         title="Mark Absent"
                                                         onClick={() => mark(s, "Absent")}
                                                     >
-                                                        <IconX />
-                                                    </button>
+                                                        <IconX className="size-4" />
+                                                    </Button>
                                                 </div>
-                                            </td>
-                                            <td className="font-mono">{s.studentId}</td>
-                                            <td>{s.name}</td>
-                                        </tr>
+                                            </TableCell>
+                                            <TableCell className="font-mono">{s.studentId}</TableCell>
+                                            <TableCell>{s.name}</TableCell>
+                                        </TableRow>
                                     );
                                 })}
 
                             {!loading && students.length === 0 && (
-                                <tr>
-                                    <td colSpan={3} className="py-10 text-center opacity-60">
+                                <TableRow>
+                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                                         No students
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     );
 }

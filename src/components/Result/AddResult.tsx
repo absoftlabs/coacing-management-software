@@ -2,7 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { toast } from "sonner";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import type { ResultType } from "@/lib/types";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Batch = { _id: string; name: string };
 type Student = { _id: string; studentId: string; name: string; batch: string };
@@ -20,7 +35,7 @@ const RESULT_TYPES: ResultType[] = ["Class Test", "Weekly Test", "Quiz Test", "M
 
 export default function AddResult() {
     const router = useRouter();
-    const [msg, setMsg] = useState("");
+    const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
 
     const [batches, setBatches] = useState<Batch[]>([]);
@@ -36,7 +51,6 @@ export default function AddResult() {
         { className: "", mcqTotal: 0, mcqGain: 0, quesTotal: 0, quesGain: 0 },
     ]);
 
-    // initial loads
     useEffect(() => {
         (async () => {
             try {
@@ -49,7 +63,6 @@ export default function AddResult() {
         })();
     }, []);
 
-    // students by batch
     useEffect(() => {
         if (!selectedBatch) {
             setStudents([]);
@@ -65,7 +78,6 @@ export default function AddResult() {
         })();
     }, [selectedBatch]);
 
-    // try server-side class filter
     useEffect(() => {
         if (!selectedBatch) return;
         (async () => {
@@ -81,14 +93,12 @@ export default function AddResult() {
         })();
     }, [selectedBatch]);
 
-    // filtered classes by batch (client safety)
     const filteredClasses = useMemo(() => {
         if (!selectedBatch) return [];
         const list = allClasses.filter((c) => !c.batch || c.batch === selectedBatch);
         return list.length ? list : allClasses;
     }, [allClasses, selectedBatch]);
 
-    // if only one class in batch, force single subject & prefill
     useEffect(() => {
         if (!selectedBatch) return;
         if (filteredClasses.length === 1) {
@@ -124,17 +134,32 @@ export default function AddResult() {
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        setMsg("");
+        setError("");
         setSaving(true);
 
-        if (!selectedBatch) { setMsg("❌ Select batch"); setSaving(false); return; }
-        if (!selectedStudent) { setMsg("❌ Select student"); setSaving(false); return; }
-        if (!resultType) { setMsg("❌ Select result type"); setSaving(false); return; }
+        if (!selectedBatch) {
+            setError("Select batch");
+            setSaving(false);
+            return;
+        }
+        if (!selectedStudent) {
+            setError("Select student");
+            setSaving(false);
+            return;
+        }
+        if (!resultType) {
+            setError("Select result type");
+            setSaving(false);
+            return;
+        }
 
         const student = students.find((s) => s._id === selectedStudent);
-        if (!student) { setMsg("❌ Invalid student"); setSaving(false); return; }
+        if (!student) {
+            setError("Invalid student");
+            setSaving(false);
+            return;
+        }
 
-        // validate subjects
         const invalid = subjects.find(
             (s) =>
                 !s.className ||
@@ -143,7 +168,11 @@ export default function AddResult() {
                 !Number.isFinite(Number(s.quesTotal)) ||
                 !Number.isFinite(Number(s.quesGain))
         );
-        if (invalid) { setMsg("❌ Please fill subject rows correctly"); setSaving(false); return; }
+        if (invalid) {
+            setError("Please fill subject rows correctly");
+            setSaving(false);
+            return;
+        }
 
         const payload = {
             batch: selectedBatch,
@@ -167,123 +196,181 @@ export default function AddResult() {
         });
 
         if (res.ok) {
+            toast.success("Result saved");
             router.push("/result-list");
             router.refresh();
         } else {
-            const j = await res.json().catch(() => ({ error: "" } as { error?: string }));
-            setMsg("❌ " + (j.error || "Failed to save"));
+            const j = await res.json().catch(() => ({} as { error?: string }));
+            setError(j.error || "Failed to save");
             setSaving(false);
         }
     }
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6">
-            <h1 className="text-2xl font-semibold">Add Result (Multi-Subject)</h1>
-
-            <form className="card bg-base-100 shadow-xl" onSubmit={onSubmit}>
-                <div className="card-body space-y-4">
-
-                    {/* Top row */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="form-control">
-                            <label className="mb-1 block text-sm font-medium">Batch</label>
-                            <select className="select select-bordered w-full" value={selectedBatch} onChange={(e) => setSelectedBatch(e.target.value)}>
-                                <option value="">-- Select Batch --</option>
-                                {batches.map((b) => <option key={b._id} value={b.name}>{b.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="form-control">
-                            <label className="mb-1 block text-sm font-medium">Student</label>
-                            <select className="select select-bordered w-full" value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)} disabled={!selectedBatch}>
-                                <option value="">-- Select Student --</option>
-                                {students.map((s) => <option key={s._id} value={s._id}>{s.name} ({s.studentId})</option>)}
-                            </select>
-                        </div>
-                        <div className="form-control">
-                            <label className="mb-1 block text-sm font-medium">Result Type</label>
-                            <select className="select select-bordered w-full" value={resultType} onChange={(e) => setResultType(e.target.value as ResultType | "")}>
-                                <option value="">-- Select --</option>
-                                {RESULT_TYPES.map((rt) => <option key={rt} value={rt}>{rt}</option>)}
-                            </select>
-                        </div>
-                        <div className="form-control">
-                            <label className="mb-1 block text-sm font-medium">Exam Date</label>
-                            <input type="date" className="input input-bordered w-full" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
-                        </div>
-                    </div>
-
-                    <hr className="my-2" />
-
-                    {/* Subject Rows */}
-                    {subjects.map((sub, idx) => (
-                        <div key={idx} className="border border-base-300 rounded-lg p-4 space-y-3">
-                            <div className="flex justify-between items-center">
-                                <h3 className="font-semibold">Subject #{idx + 1}</h3>
-                                <div className="flex gap-2">
-                                    {filteredClasses.length > 1 && (
-                                        <button type="button" onClick={addSubject} className="btn btn-xs btn-success" title="Add">➕</button>
-                                    )}
-                                    {subjects.length > 1 && (
-                                        <button type="button" onClick={() => removeSubject(idx)} className="btn btn-xs btn-error" title="Remove">➖</button>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                                <div className="form-control">
-                                    <label className="mb-1 block text-sm">Class / Subject</label>
-                                    <select
-                                        className="select select-bordered w-full"
-                                        value={sub.className}
-                                        onChange={(e) => updateSubject(idx, "className", e.target.value)}
-                                        disabled={!selectedBatch || filteredClasses.length === 0}
-                                    >
-                                        <option value="">{selectedBatch ? "-- Select --" : "Select batch first"}</option>
-                                        {filteredClasses.map((c) => (
-                                            <option key={c._id ?? c.name} value={c.name}>{c.name}</option>
+        <div className="mx-auto max-w-5xl space-y-6">
+            <Card>
+                <CardContent className="space-y-4">
+                    <form className="space-y-4" onSubmit={onSubmit}>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                            <div className="space-y-2">
+                                <Label>Batch</Label>
+                                <Select value={selectedBatch} onValueChange={(v) => setSelectedBatch(v ?? "")}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="-- Select Batch --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {batches.map((b) => (
+                                            <SelectItem key={b._id} value={b.name}>
+                                                {b.name}
+                                            </SelectItem>
                                         ))}
-                                    </select>
-                                </div>
-
-                                <div className="form-control">
-                                    <label className="mb-1 block text-sm">MCQ Total</label>
-                                    <input type="number" className="input input-bordered w-full" value={sub.mcqTotal} onChange={(e) => updateSubject(idx, "mcqTotal", Number(e.target.value))} />
-                                </div>
-                                <div className="form-control">
-                                    <label className="mb-1 block text-sm">MCQ Gain</label>
-                                    <input type="number" className="input input-bordered w-full" value={sub.mcqGain} onChange={(e) => updateSubject(idx, "mcqGain", Number(e.target.value))} />
-                                </div>
-                                <div className="form-control">
-                                    <label className="mb-1 block text-sm">Question Total</label>
-                                    <input type="number" className="input input-bordered w-full" value={sub.quesTotal} onChange={(e) => updateSubject(idx, "quesTotal", Number(e.target.value))} />
-                                </div>
-                                <div className="form-control">
-                                    <label className="mb-1 block text-sm">Question Gain</label>
-                                    <input type="number" className="input input-bordered w-full" value={sub.quesGain} onChange={(e) => updateSubject(idx, "quesGain", Number(e.target.value))} />
-                                </div>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Student</Label>
+                                <Select
+                                    value={selectedStudent}
+                                    onValueChange={(v) => setSelectedStudent(v ?? "")}
+                                    disabled={!selectedBatch}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="-- Select Student --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {students.map((s) => (
+                                            <SelectItem key={s._id} value={s._id}>
+                                                {s.name} ({s.studentId})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Result Type</Label>
+                                <Select value={resultType} onValueChange={(v) => setResultType((v ?? "") as ResultType | "")}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="-- Select --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {RESULT_TYPES.map((rt) => (
+                                            <SelectItem key={rt} value={rt}>
+                                                {rt}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="examDate">Exam Date</Label>
+                                <Input id="examDate" type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
                             </div>
                         </div>
-                    ))}
+                        <div className="border-t pt-4">
+                            <div className="space-y-4">
+                                {subjects.map((sub, idx) => (
+                                    <div key={idx} className="space-y-3 rounded-lg border p-4">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-semibold">Subject #{idx + 1}</h3>
+                                            <div className="flex gap-2">
+                                                {filteredClasses.length > 1 && (
+                                                    <Button type="button" size="icon-sm" variant="outline" onClick={addSubject} title="Add">
+                                                        <IconPlus className="size-4" />
+                                                    </Button>
+                                                )}
+                                                {subjects.length > 1 && (
+                                                    <Button
+                                                        type="button"
+                                                        size="icon-sm"
+                                                        variant="destructive"
+                                                        onClick={() => removeSubject(idx)}
+                                                        title="Remove"
+                                                    >
+                                                        <IconTrash className="size-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                                            <div className="space-y-2">
+                                                <Label>Class / Subject</Label>
+                                                <Select
+                                                    value={sub.className}
+                                                    onValueChange={(v) => updateSubject(idx, "className", v ?? "")}
+                                                    disabled={!selectedBatch || filteredClasses.length === 0}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder={selectedBatch ? "-- Select --" : "Select batch first"} />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {filteredClasses.map((c) => (
+                                                            <SelectItem key={c._id ?? c.name} value={c.name}>
+                                                                {c.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>MCQ Total</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={sub.mcqTotal}
+                                                    onChange={(e) => updateSubject(idx, "mcqTotal", Number(e.target.value))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>MCQ Gain</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={sub.mcqGain}
+                                                    onChange={(e) => updateSubject(idx, "mcqGain", Number(e.target.value))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Question Total</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={sub.quesTotal}
+                                                    onChange={(e) => updateSubject(idx, "quesTotal", Number(e.target.value))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Question Gain</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={sub.quesGain}
+                                                    onChange={(e) => updateSubject(idx, "quesGain", Number(e.target.value))}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="mt-4 flex justify-end">
+                                <Button type="button" variant="outline" onClick={addSubject} disabled={!canAddMoreSubjects}>
+                                    Add Another Subject
+                                </Button>
+                            </div>
+                        </div>
 
-                    <div className="flex justify-end">
-                        <button
-                            type="button"
-                            onClick={addSubject}
-                            className="btn btn-outline"
-                            disabled={!canAddMoreSubjects}
-                        >
-                            Add Another Subject
-                        </button>
-                    </div>
+                        {error && (
+                            <Alert variant="destructive">
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
 
-                    <div className="flex justify-end gap-2">
-                        <a href="/result-list" className="btn btn-ghost">Cancel</a>
-                        <button className="btn btn-primary" disabled={saving}>{saving ? "Saving..." : "Save Result"}</button>
-                    </div>
-
-                    {msg && <div className="text-sm">{msg}</div>}
-                </div>
-            </form>
+                        <div className="flex justify-end gap-2">
+                            <Link href="/result-list" className={buttonVariants({ variant: "ghost" })}>
+                                Cancel
+                            </Link>
+                            <Button type="submit" disabled={saving}>
+                                {saving ? "Saving..." : "Save Result"}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 }

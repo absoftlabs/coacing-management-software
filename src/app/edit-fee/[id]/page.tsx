@@ -10,13 +10,13 @@ async function fetchFee(id: string): Promise<FeeDoc | null> {
     return res.json();
 }
 
-export default async function Page({ params }: { params: { id: string } }) {
-    const fee = await fetchFee(params.id);
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const fee = await fetchFee(id);
     if (!fee) notFound();
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
-            <h1 className="text-2xl font-semibold">Edit Fee</h1>
+        <div className="mx-auto max-w-2xl space-y-6">
             <EditFeeForm initial={fee} />
         </div>
     );

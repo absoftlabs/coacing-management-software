@@ -44,29 +44,36 @@ function serialize(a: {
     };
 }
 
-// GET /api/attendance?date=YYYY-MM-DD&status=Present|Absent&q=
+// GET /api/attendance?date=YYYY-MM-DD&status=Present|Absent&batch=&q=
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
-    const date = ymd(searchParams.get("date") || undefined);
-    const status = searchParams.get("status") as AttendanceStatus | null;
-    const q = (searchParams.get("q") || "").trim();
+    try {
+        const { searchParams } = new URL(req.url);
+        const date = ymd(searchParams.get("date") || undefined);
+        const status = searchParams.get("status") as AttendanceStatus | null;
+        const batch = (searchParams.get("batch") || "").trim();
+        const q = (searchParams.get("q") || "").trim();
 
-    const where: Prisma.AttendanceWhereInput = { date };
-    if (status === "Present" || status === "Absent") where.status = status;
-    if (q) {
-        where.OR = [
-            { student: { studentId: { contains: q } } },
-            { studentName: { contains: q } },
-            { batch: { name: { contains: q } } },
-        ];
+        const where: Prisma.AttendanceWhereInput = { date };
+        if (status === "Present" || status === "Absent") where.status = status;
+        if (batch) where.batch = { name: batch };
+        if (q) {
+            where.OR = [
+                { student: { studentId: { contains: q } } },
+                { studentName: { contains: q } },
+                { batch: { name: { contains: q } } },
+            ];
+        }
+
+        const items = await prisma.attendance.findMany({
+            where,
+            orderBy: { studentName: "asc" },
+            include: { batch: true, student: { select: { studentId: true } } },
+        });
+        return NextResponse.json(items.map(serialize));
+    } catch (error) {
+        console.error("GET /api/attendance error:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
-
-    const items = await prisma.attendance.findMany({
-        where,
-        orderBy: { studentName: "asc" },
-        include: { batch: true, student: { select: { studentId: true } } },
-    });
-    return NextResponse.json(items.map(serialize));
 }
 
 // PUT /api/attendance  body: { date?, studentId, studentName, batch, status: "Present"|"Absent" }

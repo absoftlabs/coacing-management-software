@@ -27,58 +27,68 @@ function serialize(f: {
 
 // GET /api/fees
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
-    const q = (searchParams.get("q") || "").trim();
+    try {
+        const { searchParams } = new URL(req.url);
+        const q = (searchParams.get("q") || "").trim();
 
-    const where: Prisma.FeeWhereInput = q
-        ? {
-            OR: [
-                { studentName: { contains: q } },
-                { student: { studentId: { contains: q } } },
-                { depositBy: { contains: q } },
-            ],
-        }
-        : {};
+        const where: Prisma.FeeWhereInput = q
+            ? {
+                OR: [
+                    { studentName: { contains: q } },
+                    { student: { studentId: { contains: q } } },
+                    { depositBy: { contains: q } },
+                ],
+            }
+            : {};
 
-    const items = await prisma.fee.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        include: { student: { select: { studentId: true } } },
-    });
+        const items = await prisma.fee.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+            include: { student: { select: { studentId: true } } },
+        });
 
-    return NextResponse.json(items.map(serialize));
+        return NextResponse.json(items.map(serialize));
+    } catch (error) {
+        console.error("GET /api/fees error:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
 }
 
 // POST /api/fees
 export async function POST(req: NextRequest) {
-    const body = await req.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    try {
+        const body = await req.json().catch(() => null);
+        if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
-    const studentCode = String(body.studentId || "").trim();
-    const studentName = String(body.studentName || "").trim();
-    const depositBy = String(body.depositBy || "").trim();
-    const receivedBy = String(body.receivedBy || "").trim();
-    const amount = Number(body.amount || 0);
+        const studentCode = String(body.studentId || "").trim();
+        const studentName = String(body.studentName || "").trim();
+        const depositBy = String(body.depositBy || "").trim();
+        const receivedBy = String(body.receivedBy || "").trim();
+        const amount = body.amount === undefined || body.amount === null ? NaN : Number(body.amount);
 
-    if (!studentCode || !studentName || !depositBy || !receivedBy || !amount) {
-        return NextResponse.json({ error: "All fields required" }, { status: 400 });
+        if (!studentCode || !studentName || !depositBy || !receivedBy || !Number.isFinite(amount) || amount < 0) {
+            return NextResponse.json({ error: "All fields required" }, { status: 400 });
+        }
+
+        const student = await findStudentByCode(studentCode);
+        if (!student) {
+            return NextResponse.json({ error: "Student not found" }, { status: 404 });
+        }
+
+        const created = await prisma.fee.create({
+            data: {
+                studentRefId: student.id,
+                studentName,
+                depositBy,
+                receivedBy,
+                amount,
+            },
+            include: { student: { select: { studentId: true } } },
+        });
+
+        return NextResponse.json(serialize(created), { status: 201 });
+    } catch (error) {
+        console.error("POST /api/fees error:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
-
-    const student = await findStudentByCode(studentCode);
-    if (!student) {
-        return NextResponse.json({ error: "Student not found" }, { status: 404 });
-    }
-
-    const created = await prisma.fee.create({
-        data: {
-            studentRefId: student.id,
-            studentName,
-            depositBy,
-            receivedBy,
-            amount,
-        },
-        include: { student: { select: { studentId: true } } },
-    });
-
-    return NextResponse.json(serialize(created), { status: 201 });
 }

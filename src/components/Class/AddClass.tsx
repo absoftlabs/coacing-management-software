@@ -2,41 +2,51 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { toast } from "sonner";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const DAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"] as const;
 
-type Batch = {
-    _id: string;
-    name: string;
-};
-
-type Teacher = {
-    _id: string;
-    name: string;
-    isSuspended?: boolean;
-};
+type Batch = { _id: string; name: string };
+type Teacher = { _id: string; name: string; isSuspended?: boolean };
 
 export default function AddClass() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [msg, setMsg] = useState<string>("");
+    const [error, setError] = useState("");
 
-    // batches
     const [batches, setBatches] = useState<Batch[]>([]);
     const [loadingBatches, setLoadingBatches] = useState(true);
+    const [batch, setBatch] = useState("");
 
-    // teachers
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [loadingTeachers, setLoadingTeachers] = useState(true);
+    const [teacherId, setTeacherId] = useState("");
 
-    // fetch batches
+    const [days, setDays] = useState<Set<string>>(new Set());
+    const [isActive, setIsActive] = useState(true);
+
     useEffect(() => {
         (async () => {
             try {
                 const res = await fetch("/api/batches", { cache: "no-store" });
                 if (!res.ok) throw new Error("Failed to load batches");
-                const data: Batch[] = await res.json();
-                setBatches(data);
+                setBatches(await res.json());
             } catch (e) {
                 console.error(e);
             } finally {
@@ -45,12 +55,9 @@ export default function AddClass() {
         })();
     }, []);
 
-    // fetch teachers (active only)
     useEffect(() => {
         (async () => {
             try {
-                // you can implement ?suspended=false in your /api/teachers handler;
-                // we also filter on the client to be safe
                 const res = await fetch("/api/teachers?suspended=false", { cache: "no-store" });
                 if (!res.ok) throw new Error("Failed to load teachers");
                 const data: Teacher[] = await res.json();
@@ -63,25 +70,35 @@ export default function AddClass() {
         })();
     }, []);
 
-    async function onSubmit(formData: FormData) {
-        setLoading(true);
-        setMsg("");
+    function toggleDay(day: string, checked: boolean) {
+        setDays((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(day);
+            else next.delete(day);
+            return next;
+        });
+    }
 
-        // gather days safely/typed
-        const selectedDays = new Set(formData.getAll("days").map((v) => String(v)));
-        const days = DAYS.filter((d) => selectedDays.has(d));
+    async function onSubmit(fd: FormData) {
+        setLoading(true);
+        setError("");
+
+        const teacherName = teachers.find((t) => t._id === teacherId)?.name ?? "";
 
         const payload = {
-            name: String(formData.get("name") || "").trim(),
-            code: String(formData.get("code") || "").trim(),
-            // store the teacher name (to keep backward-compatible with your existing API),
-            // and also send teacherId so you can migrate later without breaking
-            teacher: String(formData.get("teacherName") || "").trim(),
-            teacherId: String(formData.get("teacherId") || "").trim(),
-            batch: String(formData.get("batch") || "").trim(),
-            days,
-            isActive: formData.get("isActive") === "on",
+            name: String(fd.get("name") || "").trim(),
+            code: String(fd.get("code") || "").trim(),
+            teacher: teacherName,
+            batch,
+            days: DAYS.filter((d) => days.has(d)),
+            isActive,
         };
+
+        if (!payload.name || !payload.code || !teacherId || !batch) {
+            setError("Name, Code, Teacher, Batch প্রয়োজন");
+            setLoading(false);
+            return;
+        }
 
         const res = await fetch("/api/classes", {
             method: "POST",
@@ -90,151 +107,108 @@ export default function AddClass() {
         });
 
         if (res.ok) {
-            setMsg("✅ Class created successfully");
+            toast.success("Class created");
             router.push("/class-list");
             router.refresh();
         } else {
-            const j = (await res.json().catch(() => ({} as { error?: string })));
-            setMsg("❌ " + (j.error || "Failed to create"));
+            const j = await res.json().catch(() => ({} as { error?: string }));
+            setError(j.error || "Failed to create");
         }
         setLoading(false);
     }
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6">
-            <h1 className="text-2xl font-semibold">Add Class/Subject</h1>
-
-            <form className="card bg-base-100 shadow-xl" action={async (fd) => onSubmit(fd)}>
-                <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Class Name */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Class Name *</span>
-                        </label>
-                        <input
-                            name="name"
-                            required
-                            className="input input-bordered"
-                            placeholder="e.g. Physics HSC 2026"
-                        />
-                    </div>
-
-                    {/* Class Code */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Class Code *</span>
-                        </label>
-                        <input
-                            name="code"
-                            required
-                            className="input input-bordered"
-                            placeholder="e.g. PHY-26-A"
-                        />
-                    </div>
-
-                    {/* Teacher (dropdown) */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Teacher *</span>
-                        </label>
-                        {loadingTeachers ? (
-                            <div className="skeleton h-10 w-full" />
-                        ) : teachers.length ? (
-                            <>
-                                {/* Hidden field to also submit human-readable teacher name */}
-                                <input type="hidden" name="teacherName" id="teacherNameHidden" />
-                                <select
-                                    name="teacherId"
-                                    required
-                                    className="select select-bordered"
-                                    onChange={(e) => {
-                                        // update hidden teacherName when teacherId changes
-                                        const t = teachers.find((x) => x._id === e.target.value);
-                                        const hidden = document.getElementById("teacherNameHidden") as HTMLInputElement | null;
-                                        if (hidden) hidden.value = t?.name ?? "";
-                                    }}
-                                >
-                                    <option value="">-- Select Teacher --</option>
-                                    {teachers.map((t) => (
-                                        <option key={t._id} value={t._id}>
-                                            {t.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </>
-                        ) : (
-                            <div className="alert alert-warning mt-1 text-sm">
-                                No active teachers found. Please add a teacher first.
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Batch (dropdown) */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Batch *</span>
-                        </label>
-                        {loadingBatches ? (
-                            <div className="skeleton h-10 w-full"></div>
-                        ) : batches.length ? (
-                            <select name="batch" required className="select select-bordered">
-                                <option value="">-- Select Batch --</option>
-                                {batches.map((b) => (
-                                    <option key={b._id} value={b.name}>
-                                        {b.name}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : (
-                            <div className="alert alert-warning mt-1 text-sm">
-                                No batches found. Please create a batch first.
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Days */}
-                    <div className="form-control md:col-span-2">
-                        <label className="label">
-                            <span className="label-text">Days</span>
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                            {DAYS.map((d) => (
-                                <label
-                                    key={d}
-                                    className="label cursor-pointer gap-2 border rounded-box px-3 py-2"
-                                >
-                                    <input type="checkbox" name="days" value={d} className="checkbox checkbox-sm" />
-                                    <span className="label-text">{d}</span>
-                                </label>
-                            ))}
+        <div className="mx-auto max-w-3xl space-y-6">
+            <Card>
+                <CardContent>
+                    <form className="grid grid-cols-1 gap-4 md:grid-cols-2" action={(fd) => onSubmit(fd)}>
+                        <div className="space-y-2">
+                            <Label htmlFor="name">Class Name *</Label>
+                            <Input id="name" name="name" required placeholder="e.g. Physics HSC 2026" />
                         </div>
-                    </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="code">Class Code *</Label>
+                            <Input id="code" name="code" required placeholder="e.g. PHY-26-A" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="teacher">Teacher *</Label>
+                            {loadingTeachers ? (
+                                <Skeleton className="h-9 w-full" />
+                            ) : teachers.length ? (
+                                <Select value={teacherId} onValueChange={(v) => setTeacherId(v ?? "")}>
+                                    <SelectTrigger id="teacher" className="w-full">
+                                        <SelectValue placeholder="-- Select Teacher --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {teachers.map((t) => (
+                                            <SelectItem key={t._id} value={t._id}>
+                                                {t.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Alert variant="destructive">
+                                    <AlertDescription>No active teachers found. Please add a teacher first.</AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="batch">Batch *</Label>
+                            {loadingBatches ? (
+                                <Skeleton className="h-9 w-full" />
+                            ) : batches.length ? (
+                                <Select value={batch} onValueChange={(v) => setBatch(v ?? "")}>
+                                    <SelectTrigger id="batch" className="w-full">
+                                        <SelectValue placeholder="-- Select Batch --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {batches.map((b) => (
+                                            <SelectItem key={b._id} value={b.name}>
+                                                {b.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Alert variant="destructive">
+                                    <AlertDescription>No batches found. Please create a batch first.</AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label>Days</Label>
+                            <div className="flex flex-wrap gap-3">
+                                {DAYS.map((d) => (
+                                    <label key={d} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                                        <Checkbox checked={days.has(d)} onCheckedChange={(c) => toggleDay(d, c === true)} />
+                                        {d}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between rounded-md border px-3 py-2 md:col-span-2">
+                            <Label htmlFor="isActive">Active</Label>
+                            <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
+                        </div>
 
-                    {/* Active */}
-                    <div className="form-control md:col-span-2">
-                        <label className="label cursor-pointer">
-                            <span className="label-text">Active</span>
-                            <input
-                                type="checkbox"
-                                name="isActive"
-                                defaultChecked
-                                className="toggle toggle-primary"
-                            />
-                        </label>
-                    </div>
-                </div>
+                        {error && (
+                            <Alert variant="destructive" className="md:col-span-2">
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
 
-                <div className="card-actions justify-end p-6 pt-0">
-                    <a href="/class-list" className="btn btn-ghost">
-                        Cancel
-                    </a>
-                    <button disabled={loading} className="btn btn-primary">
-                        {loading ? "Saving..." : "Save Class"}
-                    </button>
-                </div>
-
-                {msg && <div className="px-6 pb-6 -mt-2 text-sm">{msg}</div>}
-            </form>
+                        <div className="flex justify-end gap-2 md:col-span-2">
+                            <Link href="/class-list" className={buttonVariants({ variant: "ghost" })}>
+                                Cancel
+                            </Link>
+                            <Button type="submit" disabled={loading}>
+                                {loading ? "Saving..." : "Save Class"}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 }

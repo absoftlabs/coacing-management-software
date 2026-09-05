@@ -43,9 +43,10 @@ export async function POST(req: NextRequest) {
 
     const token = await signAuthToken({
         sub: String(admin.id),
-        role: "admin",
-        email: admin.email,
+        role: admin.role === "teacher" ? "teacher" : "admin",
+        email: admin.email ?? undefined,
         username: admin.username,
+        teacherId: admin.teacherId ?? undefined,
     });
 
     const res = NextResponse.json({ ok: true });

@@ -1,7 +1,21 @@
 // src/components/Batch/BatchList.tsx
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { IconPlus } from "@tabler/icons-react";
+import { DataTable, type DataTableColumn } from "@/components/shared/DataTable";
+import { useConfirm } from "@/components/shared/ConfirmDialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 export type BatchRow = {
     _id: string;
@@ -10,44 +24,31 @@ export type BatchRow = {
     totalStudent: number;
 };
 
-type Props = {
-    /** সার্ভার থেকে পাওয়া ব্যাচ রো-গুলোর তালিকা */
-    rows: BatchRow[];
-};
-
-export default function BatchList({ rows }: Props) {
+export default function BatchList({ rows }: { rows: BatchRow[] }) {
     const [data, setData] = useState<BatchRow[]>(rows);
-    const [q, setQ] = useState("");
+    const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<BatchRow | null>(null);
     const [name, setName] = useState("");
-    const dialogRef = useRef<HTMLDialogElement | null>(null);
-
-    const filtered = useMemo(() => {
-        if (!q.trim()) return data;
-        const rx = new RegExp(q.trim(), "i");
-        return data.filter((r) => rx.test(r.name));
-    }, [q, data]);
+    const [saving, setSaving] = useState(false);
+    const confirm = useConfirm();
 
     function openAdd() {
         setEditing(null);
         setName("");
-        dialogRef.current?.showModal();
+        setOpen(true);
     }
     function openEdit(item: BatchRow) {
         setEditing(item);
         setName(item.name);
-        dialogRef.current?.showModal();
-    }
-    function closeModal() {
-        dialogRef.current?.close();
+        setOpen(true);
     }
 
     async function saveBatch() {
         const body = { name: name.trim() };
         if (!body.name) return;
+        setSaving(true);
 
         if (editing) {
-            // update
             const res = await fetch(`/api/batches/${editing._id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
@@ -55,17 +56,14 @@ export default function BatchList({ rows }: Props) {
             });
             if (!res.ok) {
                 const j = await res.json().catch(() => ({}));
-                alert(j.error || "Failed to update");
+                toast.error(j.error || "Failed to update");
+                setSaving(false);
                 return;
             }
             const updated = (await res.json()) as { _id: string; name: string };
-            setData((prev) =>
-                prev.map((x) =>
-                    x._id === updated._id ? { ...x, name: updated.name } : x
-                )
-            );
+            setData((prev) => prev.map((x) => (x._id === updated._id ? { ...x, name: updated.name } : x)));
+            toast.success("Batch updated");
         } else {
-            // create
             const res = await fetch("/api/batches", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -73,132 +71,97 @@ export default function BatchList({ rows }: Props) {
             });
             if (!res.ok) {
                 const j = await res.json().catch(() => ({}));
-                alert(j.error || "Failed to create");
+                toast.error(j.error || "Failed to create");
+                setSaving(false);
                 return;
             }
             const created = (await res.json()) as { _id: string; name: string };
-            // নতুন রোতে শুরুতে 0 কাউন্ট রাখছি (api থেকে লিস্ট রিফ্রেশ করলে সঠিক আসবে)
-            const row: BatchRow = {
-                _id: created._id,
-                name: created.name,
-                totalClass: 0,
-                totalStudent: 0,
-            };
-            setData((prev) => [row, ...prev]);
+            setData((prev) => [{ _id: created._id, name: created.name, totalClass: 0, totalStudent: 0 }, ...prev]);
+            toast.success("Batch created");
         }
-        closeModal();
+        setSaving(false);
+        setOpen(false);
     }
 
     async function onDelete(id: string) {
-        if (!confirm("Delete this batch?")) return;
+        const ok = await confirm({
+            title: "Delete this batch?",
+            description: "This action cannot be undone.",
+            confirmText: "Delete",
+            variant: "destructive",
+        });
+        if (!ok) return;
         const res = await fetch(`/api/batches/${id}`, { method: "DELETE" });
         if (!res.ok) {
             const j = await res.json().catch(() => ({}));
-            alert(j.error || "Failed to delete");
+            toast.error(j.error || "Failed to delete");
             return;
         }
         setData((prev) => prev.filter((x) => x._id !== id));
+        toast.success("Batch deleted");
     }
+
+    const columns: DataTableColumn<BatchRow>[] = [
+        { key: "name", header: "Batch Name", cell: (r) => <span className="font-medium">{r.name}</span> },
+        { key: "totalClass", header: "Total Class", cell: (r) => r.totalClass },
+        { key: "totalStudent", header: "Total Student", cell: (r) => r.totalStudent },
+        {
+            key: "actions",
+            header: "",
+            className: "text-right",
+            cell: (r) => (
+                <div className="flex justify-end gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+                        Edit
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => onDelete(r._id)}>
+                        Delete
+                    </Button>
+                </div>
+            ),
+        },
+    ];
 
     return (
         <>
-            <div className="card bg-base-100 shadow-xl">
-                <div className="card-body">
-                    <div className="flex items-center gap-3 justify-between bg-base-200 rounded p-4">
-                        <div className="form-control">
-                            <input
-                                className="input input-bordered"
-                                placeholder="Type batch name…"
-                                value={q}
-                                onChange={(e) => setQ(e.target.value)}
-                            />
-                        </div>
-                        <button className="btn btn-primary" onClick={openAdd}>
-                            Add Batch
-                        </button>
-                    </div>
+            <DataTable
+                rows={data}
+                rowKey={(r) => r._id}
+                columns={columns}
+                searchPlaceholder="Type batch name..."
+                filterRow={(r, q) => r.name.toLowerCase().includes(q)}
+                emptyMessage="No batches"
+                toolbarRight={
+                    <Button onClick={openAdd}>
+                        <IconPlus /> Add Batch
+                    </Button>
+                }
+            />
 
-                    <div className="overflow-x-auto mt-4">
-                        <table className="table table-zebra">
-                            <thead>
-                                <tr>
-                                    <th>SL</th>
-                                    <th>Batch Name</th>
-                                    <th>Total Class</th>
-                                    <th>Total Student</th>
-                                    <th className="text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map((r, i) => (
-                                    <tr key={r._id}>
-                                        <td>{i + 1}</td>
-                                        <td>{r.name}</td>
-                                        <td>{r.totalClass}</td>
-                                        <td>{r.totalStudent}</td>
-                                        <td className="text-right">
-                                            <div className="join">
-                                                <button
-                                                    className="btn btn-xs join-item"
-                                                    onClick={() => openEdit(r)}
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    className="btn btn-xs btn-outline join-item"
-                                                    onClick={() => onDelete(r._id)}
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {!filtered.length && (
-                                    <tr>
-                                        <td colSpan={5} className="text-center opacity-60 py-10">
-                                            No batches
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {/* Add/Edit Modal */}
-            <dialog ref={dialogRef} className="modal">
-                <div className="modal-box">
-                    <h3 className="font-bold text-lg mb-2">
-                        {editing ? "Edit Batch" : "Add Batch"}
-                    </h3>
-
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Batch Name</span>
-                        </label>
-                        <input
-                            className="input input-bordered"
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{editing ? "Edit Batch" : "Add Batch"}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="batchName">Batch Name</Label>
+                        <Input
+                            id="batchName"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="e.g. HSC-26 Batch A"
                         />
                     </div>
-
-                    <div className="modal-action">
-                        <button className="btn btn-ghost" onClick={closeModal}>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setOpen(false)}>
                             Cancel
-                        </button>
-                        <button className="btn btn-primary" onClick={saveBatch}>
+                        </Button>
+                        <Button onClick={saveBatch} disabled={saving}>
                             {editing ? "Update Batch" : "Save Batch"}
-                        </button>
-                    </div>
-                </div>
-                <form method="dialog" className="modal-backdrop">
-                    <button>close</button>
-                </form>
-            </dialog>
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

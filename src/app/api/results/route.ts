@@ -102,75 +102,85 @@ function serialize(r: {
 
 // ---------- GET /api/results ----------
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
-    const q = (searchParams.get("q") || "").trim();
-    const batch = (searchParams.get("batch") || "").trim();
-    const studentId = (searchParams.get("studentId") || "").trim();
-    const resultTypeParam = (searchParams.get("resultType") || "").trim();
+    try {
+        const { searchParams } = new URL(req.url);
+        const q = (searchParams.get("q") || "").trim();
+        const batch = (searchParams.get("batch") || "").trim();
+        const studentId = (searchParams.get("studentId") || "").trim();
+        const resultTypeParam = (searchParams.get("resultType") || "").trim();
 
-    const where: Prisma.ResultWhereInput = {};
-    if (q) {
-        where.OR = [
-            { student: { studentId: { contains: q } } },
-            { studentName: { contains: q } },
-            { batch: { name: { contains: q } } },
-        ];
+        const where: Prisma.ResultWhereInput = {};
+        if (q) {
+            where.OR = [
+                { student: { studentId: { contains: q } } },
+                { studentName: { contains: q } },
+                { batch: { name: { contains: q } } },
+            ];
+        }
+        if (batch) where.batch = { name: batch };
+        if (studentId) where.student = { studentId };
+        if (resultTypeParam && (ALLOWED_TYPES as readonly string[]).includes(resultTypeParam)) {
+            where.resultType = resultTypeParam;
+        }
+
+        const items = await prisma.result.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+            include: { batch: true, subjects: true, student: { select: { studentId: true } } },
+        });
+
+        return NextResponse.json(items.map(serialize));
+    } catch (error) {
+        console.error("GET /api/results error:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
-    if (batch) where.batch = { name: batch };
-    if (studentId) where.student = { studentId };
-    if (resultTypeParam && (ALLOWED_TYPES as readonly string[]).includes(resultTypeParam)) {
-        where.resultType = resultTypeParam;
-    }
-
-    const items = await prisma.result.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        include: { batch: true, subjects: true, student: { select: { studentId: true } } },
-    });
-
-    return NextResponse.json(items.map(serialize));
 }
 
 // ---------- POST /api/results ----------
 export async function POST(req: NextRequest) {
-    const payloadRaw: unknown = await req.json().catch(() => null);
-    const normalized = normalizePayload(payloadRaw);
-    if (!normalized) {
-        return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-    }
+    try {
+        const payloadRaw: unknown = await req.json().catch(() => null);
+        const normalized = normalizePayload(payloadRaw);
+        if (!normalized) {
+            return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+        }
 
-    const student = await findStudentByCode(normalized.studentId);
-    if (!student) {
-        return NextResponse.json({ error: "Student not found" }, { status: 404 });
-    }
-    const batchId = await resolveBatchId(normalized.batch);
+        const student = await findStudentByCode(normalized.studentId);
+        if (!student) {
+            return NextResponse.json({ error: "Student not found" }, { status: 404 });
+        }
+        const batchId = await resolveBatchId(normalized.batch);
 
-    const totalMarks = normalized.subjects.reduce((acc, s) => acc + (s.totalMarks ?? 0), 0);
-    const totalGain = normalized.subjects.reduce((acc, s) => acc + (s.totalGain ?? 0), 0);
+        const totalMarks = normalized.subjects.reduce((acc, s) => acc + (s.totalMarks ?? 0), 0);
+        const totalGain = normalized.subjects.reduce((acc, s) => acc + (s.totalGain ?? 0), 0);
 
-    const created = await prisma.result.create({
-        data: {
-            batchId,
-            studentRefId: student.id,
-            studentName: normalized.studentName,
-            resultType: normalized.resultType,
-            examDate: normalized.examDate ? new Date(normalized.examDate) : undefined,
-            totalMarks,
-            totalGain,
-            subjects: {
-                create: normalized.subjects.map((s) => ({
-                    className: s.className,
-                    mcqTotal: s.mcqTotal ?? 0,
-                    mcqGain: s.mcqGain ?? 0,
-                    quesTotal: s.quesTotal ?? 0,
-                    quesGain: s.quesGain ?? 0,
-                    totalMarks: s.totalMarks ?? 0,
-                    totalGain: s.totalGain ?? 0,
-                })),
+        const created = await prisma.result.create({
+            data: {
+                batchId,
+                studentRefId: student.id,
+                studentName: normalized.studentName,
+                resultType: normalized.resultType,
+                examDate: normalized.examDate ? new Date(normalized.examDate) : undefined,
+                totalMarks,
+                totalGain,
+                subjects: {
+                    create: normalized.subjects.map((s) => ({
+                        className: s.className,
+                        mcqTotal: s.mcqTotal ?? 0,
+                        mcqGain: s.mcqGain ?? 0,
+                        quesTotal: s.quesTotal ?? 0,
+                        quesGain: s.quesGain ?? 0,
+                        totalMarks: s.totalMarks ?? 0,
+                        totalGain: s.totalGain ?? 0,
+                    })),
+                },
             },
-        },
-        include: { batch: true, subjects: true, student: { select: { studentId: true } } },
-    });
+            include: { batch: true, subjects: true, student: { select: { studentId: true } } },
+        });
 
-    return NextResponse.json(serialize(created), { status: 201 });
+        return NextResponse.json(serialize(created), { status: 201 });
+    } catch (error) {
+        console.error("POST /api/results error:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
 }

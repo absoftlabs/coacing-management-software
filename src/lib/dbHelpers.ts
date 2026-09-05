@@ -19,6 +19,23 @@ export function prismaDeleteErrorResponse(error: unknown): NextResponse {
     throw error;
 }
 
+/** Maps a failed update call to the right status: 404 when the row is gone,
+ *  409 on a unique-constraint clash, 400 for anything else (bad input,
+ *  invalid date, etc.) — instead of blanket-reporting every failure as 404,
+ *  which hides real bugs and reports the wrong status to the client. */
+export function prismaUpdateErrorResponse(error: unknown): NextResponse {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === "P2025") {
+            return NextResponse.json({ error: "Not found" }, { status: 404 });
+        }
+        if (error.code === "P2002") {
+            return NextResponse.json({ error: "A record with this value already exists" }, { status: 409 });
+        }
+    }
+    console.error("Update failed:", error);
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+}
+
 /** Finds a Batch by name, creating it if it doesn't exist yet (mirrors the old
  *  Mongo behavior where `batch` was a free-text string with no FK enforcement). */
 export async function resolveBatchId(name: string): Promise<number> {

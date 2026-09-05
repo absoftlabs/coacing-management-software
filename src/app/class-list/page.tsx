@@ -22,7 +22,6 @@ export default async function Page() {
     const rows = await getClasses();
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-semibold">Class List</h1>
             <ClassList rows={rows} />
         </div>
     );

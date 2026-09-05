@@ -1,15 +1,33 @@
-'use client'
-import React, { useState } from 'react'
-import ThemeToggle from './ThemeToggle'
-import Image from 'next/image'
-import { IconMenu2 } from '@tabler/icons-react';
-import Drawer from './Drawer';
+"use client";
 
-
-const ORG_LOGO = "https://i.ibb.co.com/cXwWBJCC/logo2.png";
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { toast } from "sonner";
+import { IconLogout, IconSettings, IconUserCircle } from "@tabler/icons-react";
+import ThemeToggle from "./ThemeToggle";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useOrgLogo } from "@/hooks/use-org-logo";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { getPageTitle } from "@/lib/nav";
 
 function Header() {
     const [loggingOut, setLoggingOut] = useState(false);
+    const logo = useOrgLogo();
+    const user = useCurrentUser();
+    const pathname = usePathname();
+    const title = getPageTitle(pathname);
 
     async function handleLogout() {
         setLoggingOut(true);
@@ -18,54 +36,52 @@ function Header() {
             if (typeof window !== "undefined") {
                 window.location.href = "/login";
             }
-        } finally {
+        } catch {
+            toast.error("Logout failed");
             setLoggingOut(false);
         }
     }
 
     return (
-        <div className="navbar bg-base-200 shadow-sm">
-            <div className="flex-1">
-                <div className="drawer-content md:hidden">
-                    <Drawer />
-                    <label htmlFor="my-drawer-1" className="btn drawer-button"><IconMenu2 /></label>
-                </div>
-                <a className="text-2xl hidden md:flex">Dashboard</a>
-            </div>
-            <div className="flex items-center justify-center gap-2">
+        <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-sm supports-backdrop-filter:bg-background/60">
+            <SidebarTrigger />
+            <Separator orientation="vertical" className="h-5" />
+            <span className="text-lg font-semibold">{title}</span>
+
+            <div className="ml-auto flex items-center gap-2">
                 <ThemeToggle />
 
-                <div className="dropdown dropdown-end">
-                    <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
-                        <div className="w-10 rounded-full mask mask-circle">
-                            <Image
-                                alt="Tailwind CSS Navbar component"
-                                src={ORG_LOGO}
-                                layout="fill"
-                                objectFit="cover"
-                            />
-                        </div>
-                    </div>
-                        <ul
-                            tabIndex={0}
-                            className="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
-                            <li>
-                                <a className="justify-between">
-                                    Profile
-                                    <span className="badge">New</span>
-                                </a>
-                            </li>
-                            <li><a href="/change-password">Change Password</a></li>
-                            <li>
-                                <button onClick={handleLogout} disabled={loggingOut}>
-                                    {loggingOut ? "Logging out..." : "Logout"}
-                                </button>
-                            </li>
-                        </ul>
-                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                        <Avatar className="ring-2 ring-border">
+                            <AvatarImage src={logo} alt="Admin" />
+                            <AvatarFallback>AD</AvatarFallback>
+                        </Avatar>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuGroup>
+                            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {user?.role !== "teacher" && (
+                                <DropdownMenuItem render={<Link href="/settings" />}>
+                                    <IconSettings className="size-4" />
+                                    Settings
+                                </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem render={<Link href="/change-password" />}>
+                                <IconUserCircle className="size-4" />
+                                Change Password
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleLogout} disabled={loggingOut} variant="destructive">
+                                <IconLogout className="size-4" />
+                                {loggingOut ? "Logging out..." : "Logout"}
+                            </DropdownMenuItem>
+                        </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
-        </div>
-    )
+        </header>
+    );
 }
 
-export default Header
+export default Header;

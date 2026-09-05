@@ -1,18 +1,16 @@
 // src/app/edit-student/[id]/page.tsx
-import EditStudent from "@/components/Student/EditStudent";
+import EditStudent, { type StudentItem } from "@/components/Student/EditStudent";
 import { api } from "@/lib/baseUrl";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-/** Next 15: params কখনও Promise হতে পারে */
 type Params = { id: string };
 type Props = { params: Params } | { params: Promise<Params> };
 
 async function getParams(p: Props["params"]): Promise<Params> {
-    // Promise হোক বা না হোক — resolve করে ফেলি
     return Promise.resolve(p as Params | Promise<Params>);
 }
 
-async function fetchStudent(id: string) {
-    // ✅ একীভূত api() helper — Client/Server দুই জায়গাতেই সেফ
+async function fetchStudent(id: string): Promise<StudentItem | null> {
     const res = await api(`/api/students/${id}`, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json();
@@ -24,17 +22,13 @@ export default async function Page(props: Props) {
 
     if (!item) {
         return (
-            <div className="max-w-4xl mx-auto space-y-3">
-                <h1 className="text-2xl font-semibold">Edit Student</h1>
-                <div className="alert alert-error">Student not found.</div>
+            <div className="mx-auto max-w-4xl space-y-3">
+                <Alert variant="destructive">
+                    <AlertDescription>Student not found.</AlertDescription>
+                </Alert>
             </div>
         );
     }
 
-    return (
-        <div className="space-y-6">
-            <h1 className="text-2xl font-semibold">Edit Student</h1>
-            <EditStudent item={item} />
-        </div>
-    );
+    return <EditStudent item={item} />;
 }

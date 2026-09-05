@@ -15,7 +15,6 @@ export default async function Page() {
     const rows = await fetchRows();
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-semibold">Teacher List</h1>
             <TeacherList rows={rows} />
         </div>
     );

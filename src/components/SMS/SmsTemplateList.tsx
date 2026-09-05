@@ -1,5 +1,10 @@
-// src/components/sms/SmsTemplateList.tsx
+// src/components/SMS/SmsTemplateList.tsx
 "use client";
+
+import { toast } from "sonner";
+import { DataTable, type DataTableColumn } from "@/components/shared/DataTable";
+import { useConfirm } from "@/components/shared/ConfirmDialog";
+import { Button } from "@/components/ui/button";
 
 export type SmsTemplateRow = {
     _id: string;
@@ -17,43 +22,46 @@ type Props = {
 };
 
 export default function SmsTemplateList({ rows, loading, onEdit, onDeleted }: Props) {
+    const confirm = useConfirm();
+
     async function onDelete(id: string) {
-        if (!confirm("Delete this template?")) return;
+        const ok = await confirm({
+            title: "Delete this template?",
+            description: "This action cannot be undone.",
+            confirmText: "Delete",
+            variant: "destructive",
+        });
+        if (!ok) return;
         const res = await fetch(`/api/sms/templates/${id}`, { method: "DELETE" });
-        if (res.ok) onDeleted();
+        if (res.ok) {
+            toast.success("Template deleted");
+            onDeleted();
+        } else toast.error("Delete failed");
     }
 
-    return (
-        <div className="overflow-x-auto">
-            <table className="table table-zebra">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Updated</th>
-                        <th className="text-right">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {loading && (
-                        <tr><td colSpan={3} className="text-center py-8 opacity-60">Loading...</td></tr>
-                    )}
-                    {!loading && rows.map(r => (
-                        <tr key={r._id}>
-                            <td>{r.templateName}</td>
-                            <td>{new Date(r.updatedAt).toLocaleString()}</td>
-                            <td className="text-right">
-                                <div className="join">
-                                    <button className="btn btn-sm join-item" onClick={() => onEdit(r)}>Edit</button>
-                                    <button className="btn btn-sm btn-outline join-item" onClick={() => onDelete(r._id)}>Delete</button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                    {!loading && !rows.length && (
-                        <tr><td colSpan={3} className="text-center py-8 opacity-60">No templates</td></tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
-    );
+    const columns: DataTableColumn<SmsTemplateRow>[] = [
+        { key: "name", header: "Name", cell: (r) => r.templateName },
+        { key: "updated", header: "Updated", cell: (r) => new Date(r.updatedAt).toLocaleString() },
+        {
+            key: "actions",
+            header: "",
+            className: "text-right",
+            cell: (r) => (
+                <div className="flex justify-end gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => onEdit(r)}>
+                        Edit
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => onDelete(r._id)}>
+                        Delete
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
+    if (loading) {
+        return <p className="py-8 text-center text-muted-foreground">Loading...</p>;
+    }
+
+    return <DataTable rows={rows} rowKey={(r) => r._id} columns={columns} emptyMessage="No templates" />;
 }

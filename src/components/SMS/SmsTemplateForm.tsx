@@ -1,7 +1,12 @@
-// src/components/sms/SmsTemplateForm.tsx
+// src/components/SMS/SmsTemplateForm.tsx
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export type SmsTemplateShape = {
     _id?: string;
@@ -33,7 +38,6 @@ export default function SmsTemplateForm({ initial, onSaved, onCancel }: Props) {
     const [templateName, setTemplateName] = useState<string>("");
     const [templateBody, setTemplateBody] = useState<string>("");
     const [saving, setSaving] = useState(false);
-    const [msg, setMsg] = useState<string>("");
 
     useEffect(() => {
         if (initial) {
@@ -43,13 +47,11 @@ export default function SmsTemplateForm({ initial, onSaved, onCancel }: Props) {
             setTemplateName("");
             setTemplateBody("");
         }
-        setMsg("");
     }, [initial]);
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault();
         setSaving(true);
-        setMsg("");
 
         const payload = { templateName: templateName.trim(), templateBody: templateBody.trim() };
         const path = initial?._id ? `/api/sms/templates/${initial._id}` : "/api/sms/templates";
@@ -62,22 +64,23 @@ export default function SmsTemplateForm({ initial, onSaved, onCancel }: Props) {
         });
 
         if (res.ok) {
+            toast.success(initial?._id ? "Template updated" : "Template saved");
             onSaved();
             setTemplateName("");
             setTemplateBody("");
         } else {
             const j = await res.json().catch(() => ({} as { error?: string }));
-            setMsg("Failed: " + (j.error ?? "Unknown error"));
+            toast.error("Failed: " + (j.error ?? "Unknown error"));
         }
         setSaving(false);
     }
 
     return (
         <form onSubmit={onSubmit} className="space-y-4">
-            <div className="form-control">
-                <label className="label"><span className="label-text">Template Name</span></label>
-                <input
-                    className="input input-bordered"
+            <div className="space-y-2">
+                <Label htmlFor="templateName">Template Name</Label>
+                <Input
+                    id="templateName"
                     required
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value)}
@@ -85,38 +88,42 @@ export default function SmsTemplateForm({ initial, onSaved, onCancel }: Props) {
                 />
             </div>
 
-            <div className="form-control">
-                <label className="label"><span className="label-text">SMS Template</span></label>
-                <textarea
-                    className="textarea textarea-bordered min-h-36"
+            <div className="space-y-2">
+                <Label htmlFor="templateBody">SMS Template</Label>
+                <Textarea
+                    id="templateBody"
                     required
+                    className="min-h-36"
                     value={templateBody}
                     onChange={(e) => setTemplateBody(e.target.value)}
                     placeholder="Dear [student-name], your [exam-type] result is [gain-mark/total-mark] in [subject] on [exam-date]. – [coaching-name]"
                 />
-                <div className="mt-2 text-xs">
-                    <div className="font-semibold mb-1">Available Variables:</div>
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {PLACEHOLDERS.map(p => (
-                            <div key={p.key} className="p-2 rounded bg-base-200">
+                <div className="text-xs">
+                    <div className="mb-1 font-semibold">Available Variables:</div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {PLACEHOLDERS.map((p) => (
+                            <div key={p.key} className="rounded-md border bg-muted/40 p-2">
                                 <div className="font-mono text-xs">{p.key}</div>
-                                <div className="opacity-70">{p.label}{p.example ? ` – e.g. ${p.example}` : ""}</div>
+                                <div className="text-muted-foreground">
+                                    {p.label}
+                                    {p.example ? ` – e.g. ${p.example}` : ""}
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
             </div>
 
-            <div className="flex gap-2 justify-end">
+            <div className="flex justify-end gap-2">
                 {onCancel && (
-                    <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+                    <Button type="button" variant="ghost" onClick={onCancel}>
+                        Cancel
+                    </Button>
                 )}
-                <button className="btn btn-primary" disabled={saving}>
+                <Button type="submit" disabled={saving}>
                     {saving ? "Saving..." : initial?._id ? "Update Template" : "Save Template"}
-                </button>
+                </Button>
             </div>
-
-            {msg && <div className="text-sm">{msg}</div>}
         </form>
     );
 }

@@ -2,6 +2,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
 type TeacherRow = {
     _id: string;
@@ -18,7 +40,7 @@ type SmsLogRow = {
     phone: string;
     status: "sent" | "failed" | string;
     providerId?: string;
-    sentAt: string; // ISO
+    sentAt: string;
     error?: string;
 };
 
@@ -27,11 +49,8 @@ export default function TeacherSmsPage() {
     const [scope, setScope] = useState<"ALL" | "INDIVIDUAL">("ALL");
     const [teacherId, setTeacherId] = useState<string>("");
     const [message, setMessage] = useState<string>("");
-
     const [sending, setSending] = useState(false);
-    const [msg, setMsg] = useState<string>("");
 
-    // logs
     const [logs, setLogs] = useState<SmsLogRow[]>([]);
     const [logQuery, setLogQuery] = useState<string>("");
     const [loadingLogs, setLoadingLogs] = useState(false);
@@ -39,9 +58,7 @@ export default function TeacherSmsPage() {
     useEffect(() => {
         (async () => {
             try {
-                const list = await fetch("/api/teachers", { cache: "no-store" }).then(
-                    (r) => r.json() as Promise<TeacherRow[]>
-                );
+                const list = await fetch("/api/teachers", { cache: "no-store" }).then((r) => r.json() as Promise<TeacherRow[]>);
                 setTeachers(list);
             } catch {
                 setTeachers([]);
@@ -51,14 +68,13 @@ export default function TeacherSmsPage() {
 
     async function send() {
         setSending(true);
-        setMsg("");
         try {
             if (!message.trim()) {
-                setMsg("Write a message first.");
+                toast.error("Write a message first.");
                 return;
             }
             if (scope === "INDIVIDUAL" && !teacherId) {
-                setMsg("Select a teacher.");
+                toast.error("Select a teacher.");
                 return;
             }
 
@@ -75,12 +91,12 @@ export default function TeacherSmsPage() {
             });
 
             if (res.ok) {
-                setMsg("✅ Sent");
+                toast.success("Sent");
                 setMessage("");
                 await loadLogs();
             } else {
                 const j = (await res.json().catch(() => ({}))) as { error?: string };
-                setMsg("❌ " + (j.error ?? "Failed to send"));
+                toast.error(j.error ?? "Failed to send");
             }
         } finally {
             setSending(false);
@@ -92,9 +108,7 @@ export default function TeacherSmsPage() {
         try {
             const url = new URL("/api/sms/logs", location.origin);
             url.searchParams.set("audience", "teacher");
-            const list = await fetch(url.toString(), { cache: "no-store" }).then(
-                (r) => r.json() as Promise<SmsLogRow[]>
-            );
+            const list = await fetch(url.toString(), { cache: "no-store" }).then((r) => r.json() as Promise<SmsLogRow[]>);
             setLogs(list);
         } catch {
             setLogs([]);
@@ -115,141 +129,124 @@ export default function TeacherSmsPage() {
                 (l.preview ?? "").toLowerCase().includes(s) ||
                 (l.phone ?? "").toLowerCase().includes(s) ||
                 (l.teacherId ?? "").toLowerCase().includes(s) ||
-
                 (l.status ?? "").toLowerCase().includes(s)
         );
     }, [logs, logQuery]);
 
     return (
-        <div className="card bg-base-100 shadow-xl">
-            <div className="card-body space-y-6">
-                <h2 className="card-title">Send SMS to Teachers</h2>
+        <Card>
+            <CardContent className="space-y-6">
+                <h2 className="text-lg font-semibold">Send SMS to Teachers</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Scope */}
-                    <div className="form-control col-span-1">
-                        <legend className="fieldset-legend">Select Teacher Scope *</legend>
-                        <select
-                            className="select select-bordered rounded-full ps-5 w-full"
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label>Select Teacher Scope *</Label>
+                        <Select
                             value={scope}
-                            onChange={(e) => {
-                                const v = e.target.value as "ALL" | "INDIVIDUAL";
-                                setScope(v);
-                                if (v === "ALL") setTeacherId("");
+                            onValueChange={(v) => {
+                                const val = (v ?? "ALL") as "ALL" | "INDIVIDUAL";
+                                setScope(val);
+                                if (val === "ALL") setTeacherId("");
                             }}
                         >
-                            <option className="" value="ALL">All</option>
-                            <option className="" value="INDIVIDUAL">Individual Teacher</option>
-                        </select>
+                            <SelectTrigger className="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">All</SelectItem>
+                                <SelectItem value="INDIVIDUAL">Individual Teacher</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    {/* Pick teacher if INDIVIDUAL */}
-                    <div className="form-control col-span-1">
-                        <legend className="fieldset-legend">Teacher</legend>
-                        <select
-                            className="select select-bordered rounded-full ps-5 w-full"
-                            value={teacherId}
-                            onChange={(e) => setTeacherId(e.target.value)}
-                            disabled={scope !== "INDIVIDUAL"}
-                        >
-                            <option value="">-- Select Teacher --</option>
-                            {teachers.map((t) => (
-                                <option key={t._id} value={t._id}>
-                                    {t.name}{t.primarySubject ? ` – ${t.primarySubject}` : ""}
-                                </option>
-                            ))}
-                        </select>
+                    <div className="space-y-2">
+                        <Label>Teacher</Label>
+                        <Select value={teacherId} onValueChange={(v) => setTeacherId(v ?? "")} disabled={scope !== "INDIVIDUAL"}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="-- Select Teacher --" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {teachers.map((t) => (
+                                    <SelectItem key={t._id} value={t._id}>
+                                        {t.name}
+                                        {t.primarySubject ? ` – ${t.primarySubject}` : ""}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    {/* Message */}
-                    <fieldset  className="fieldset form-control md:col-span-2 grid w-full">
-                        <legend className="fieldset-legend">SMS *</legend>
-                        <textarea
-                            className="textarea textarea-bordered rounded-2xl w-full"
+                    <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="message">SMS *</Label>
+                        <Textarea
+                            id="message"
                             rows={4}
                             placeholder="Write your message..."
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                         />
-                        <div className="label">This message will be sent to {scope === "ALL" ? "all teachers" : "the selected teacher"}.</div>
-                    </fieldset>
+                        <p className="text-xs text-muted-foreground">
+                            This message will be sent to {scope === "ALL" ? "all teachers" : "the selected teacher"}.
+                        </p>
+                    </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
-                    <button
-                        className="btn btn-primary rounded-full"
-                        onClick={send}
-                        disabled={sending}
-                    >
+                <div className="flex justify-end">
+                    <Button onClick={send} disabled={sending}>
                         {sending ? "Sending..." : "Send"}
-                    </button>
+                    </Button>
                 </div>
 
-                {msg && <div className="text-sm">{msg}</div>}
-
-                {/* SMS LOG TABLE */}
-                <div className="mt-6">
-                    <div className="flex items-end justify-between gap-3 flex-col md:flex-row">
+                <div className="space-y-3">
+                    <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-end">
                         <h3 className="text-lg font-semibold">SMS Log (Teachers)</h3>
-                        <div className="flex gap-2 items-center">
-                            <input
-                                className="input input-bordered rounded-full"
+                        <div className="flex items-center gap-2">
+                            <Input
                                 placeholder="Search logs (text / phone / teacher / status)"
                                 value={logQuery}
                                 onChange={(e) => setLogQuery(e.target.value)}
                             />
-                            <button
-                                className="btn btn-outline rounded-full"
-                                onClick={loadLogs}
-                                disabled={loadingLogs}
-                            >
+                            <Button variant="outline" onClick={loadLogs} disabled={loadingLogs}>
                                 {loadingLogs ? "Refreshing..." : "Refresh"}
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto mt-3">
-                        <table className="table table-zebra">
-                            <thead>
-                                <tr>
-                                    <th>When</th>
-                                    <th>Teacher</th>
-                                    <th>Phone</th>
-                                    <th>Status</th>
-                                    <th>Preview</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                    <div className="overflow-x-auto rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>When</TableHead>
+                                    <TableHead>Teacher</TableHead>
+                                    <TableHead>Phone</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Preview</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {filteredLogs.map((l) => (
-                                    <tr key={l._id}>
-                                        <td>{new Date(l.sentAt).toLocaleString()}</td>
-                                        <td>{l._id ?? "-"}</td>
-                                        <td className="font-mono">{l.phone}</td>
-                                        <td>
-                                            <span
-                                                className={`badge ${l.status === "sent" ? "badge-success" : "badge-error"} text-white`}
-                                            >
-                                                {l.status}
-                                            </span>
-                                        </td>
-                                        <td className="max-w-[520px] whitespace-normal">
-                                            {l.preview}
-                                        </td>
-                                    </tr>
+                                    <TableRow key={l._id}>
+                                        <TableCell>{new Date(l.sentAt).toLocaleString()}</TableCell>
+                                        <TableCell>{l.teacherId ?? "-"}</TableCell>
+                                        <TableCell className="font-mono">{l.phone}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={l.status === "sent" ? "default" : "destructive"}>{l.status}</Badge>
+                                        </TableCell>
+                                        <TableCell className="max-w-[520px] whitespace-normal">{l.preview}</TableCell>
+                                    </TableRow>
                                 ))}
                                 {!filteredLogs.length && (
-                                    <tr>
-                                        <td colSpan={5} className="py-10 text-center opacity-60">
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                                             No logs
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 )}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 </div>
-                {/* /LOG TABLE */}
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     );
 }

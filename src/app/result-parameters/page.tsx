@@ -1,9 +1,15 @@
-import React from 'react'
+import { IconApps } from "@tabler/icons-react";
+import { Card, CardContent } from "@/components/ui/card";
 
-function page() {
+export default function Page() {
     return (
-        <div>page</div>
-    )
+        <div className="space-y-6">
+            <Card>
+                <CardContent className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
+                    <IconApps className="size-10" />
+                    <p>Coming soon</p>
+                </CardContent>
+            </Card>
+        </div>
+    );
 }
-
-export default page

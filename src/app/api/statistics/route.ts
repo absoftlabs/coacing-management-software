@@ -1,7 +1,8 @@
 // src/app/api/statistics/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSmsBalance } from "@/lib/sms/smsNetClient";
+import { getBulkSmsBalance } from "@/lib/sms/bulkSmsClient";
+import { getSettings } from "@/lib/settings";
 
 export async function GET() {
     try {
@@ -27,8 +28,11 @@ export async function GET() {
 
         let smsBalance = 0;
         try {
-            const bal = await getSmsBalance();
-            smsBalance = Number(bal) || 0;
+            const settings = await getSettings();
+            if (settings.smsApiKey) {
+                const bal = await getBulkSmsBalance(settings.smsApiKey);
+                smsBalance = bal.ok ? Number(bal.balance) || 0 : 0;
+            }
         } catch {
             smsBalance = 0;
         }

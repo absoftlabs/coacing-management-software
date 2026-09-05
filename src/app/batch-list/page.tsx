@@ -29,7 +29,6 @@ export default async function Page() {
     const rows = await fetchBatches();
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-semibold">Batch List</h1>
             <BatchList rows={rows} />
         </div>
     );

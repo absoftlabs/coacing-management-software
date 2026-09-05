@@ -1,6 +1,6 @@
-import React from "react";
 import EditClass from "@/components/Class/EditClass";
 import { api } from "@/lib/baseUrl";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 async function fetchClass(id: string) {
     const res = await api(`/api/classes/${id}`, { cache: "no-store" });
@@ -8,12 +8,15 @@ async function fetchClass(id: string) {
     return res.json();
 }
 
-export default async function Page({ params }: { params: { id: string } }) {
-    const item = await fetchClass(params.id);
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const item = await fetchClass(id);
     if (!item) {
         return (
-            <div className="p-6">
-                <div className="alert alert-error">Not found</div>
+            <div className="mx-auto max-w-3xl">
+                <Alert variant="destructive">
+                    <AlertDescription>Class not found.</AlertDescription>
+                </Alert>
             </div>
         );
     }

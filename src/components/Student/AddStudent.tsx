@@ -3,7 +3,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
+import { toast } from "sonner";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Batch = { _id: string; name: string };
 
@@ -38,11 +54,15 @@ type StudentPayload = {
 
 export default function AddStudent() {
     const router = useRouter();
-    const [msg, setMsg] = useState("");
+    const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
 
     const [batches, setBatches] = useState<Batch[]>([]);
     const [loadingBatches, setLoadingBatches] = useState(true);
+    const [batch, setBatch] = useState("");
+    const [division, setDivision] = useState("");
+    const [schoolSection, setSchoolSection] = useState("");
+    const [gender, setGender] = useState("");
 
     const [guardianMode, setGuardianMode] = useState<"Father" | "Mother" | "Custom">("Father");
     const [fatherName, setFatherName] = useState("");
@@ -84,32 +104,22 @@ export default function AddStudent() {
 
     async function onSubmit(fd: FormData) {
         setSaving(true);
-        setMsg("");
-
-        // Safely parse to typed fields (no any)
-        const divisionRaw = String(fd.get("division") || "");
-        const division: Division | undefined = divisionRaw ? (divisionRaw as Division) : undefined;
-
-        const sectionRaw = String(fd.get("schoolSection") || "");
-        const schoolSection: Section | undefined = sectionRaw ? (sectionRaw as Section) : undefined;
-
-        const genderRaw = String(fd.get("gender") || "");
-        const gender: Gender | undefined = genderRaw ? (genderRaw as Gender) : undefined;
+        setError("");
 
         const payload: StudentPayload = {
             name: String(fd.get("name") || "").trim(),
-            batch: String(fd.get("batch") || "").trim(),
+            batch,
             roll: String(fd.get("roll") || "").trim(),
-            division,
+            division: (division || undefined) as Division | undefined,
             schoolName: String(fd.get("schoolName") || ""),
             schoolRoll: String(fd.get("schoolRoll") || ""),
-            schoolSection,
+            schoolSection: (schoolSection || undefined) as Section | undefined,
             address: String(fd.get("address") || ""),
             fatherName: fatherName.trim(),
             motherName: motherName.trim(),
-            guardianName: guardianName,
+            guardianName,
             guardianPhone: String(fd.get("guardianPhone") || ""),
-            gender,
+            gender: (gender || undefined) as Gender | undefined,
             photoUrl,
             isSuspended: false,
             birthDate: String(fd.get("birthDate") || ""),
@@ -117,7 +127,7 @@ export default function AddStudent() {
         };
 
         if (!payload.name || !payload.batch || !payload.roll) {
-            setMsg("❌ Name, Batch, Roll প্রয়োজন");
+            setError("Name, Batch, Roll প্রয়োজন");
             setSaving(false);
             return;
         }
@@ -129,219 +139,209 @@ export default function AddStudent() {
         });
 
         if (res.ok) {
+            toast.success("Student added");
             router.push("/student-list");
             router.refresh();
         } else {
             const j = await res.json().catch(() => ({} as { error?: string }));
-            setMsg("❌ " + (j.error || "Failed to add"));
+            setError(j.error || "Failed to add");
             setSaving(false);
         }
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            <h1 className="text-2xl font-semibold">Add Student</h1>
-
-            <form className="card bg-base-100 shadow-xl" action={async (fd) => onSubmit(fd)}>
-                <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Name */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">
-                            Name <span className="text-error">*</span>
-                        </label>
-                        <input name="name" required className="input input-bordered w-full" placeholder="Student name" />
-                    </div>
-
-                    {/* Batch */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">
-                            Batch <span className="text-error">*</span>
-                        </label>
-                        {loadingBatches ? (
-                            <div className="skeleton h-10 w-full" />
-                        ) : batches.length ? (
-                            <select name="batch" required className="select select-bordered w-full">
-                                <option value="">-- Select Batch --</option>
-                                {batches.map((b) => (
-                                    <option key={b._id} value={b.name}>
-                                        {b.name}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : (
-                            <div className="alert alert-warning text-sm">No batches found. Create a batch first.</div>
-                        )}
-                    </div>
-
-                    {/* Roll */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">
-                            Roll <span className="text-error">*</span>
-                        </label>
-                        <input name="roll" required className="input input-bordered w-full" placeholder="e.g. 101" />
-                    </div>
-
-                    {/* Division */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Group</label>
-                        <select name="division" className="select select-bordered w-full" defaultValue="">
-                            <option value="">-- None --</option>
-                            {DIVISIONS.map((d) => (
-                                <option key={d} value={d}>
-                                    {d}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* School Name (full) */}
-                    <div className="form-control md:col-span-1">
-                        <label className="mb-1 block text-sm font-medium">Birth Date</label>
-                        <input name="birthDate" type="date" className="input input-bordered w-full" />
-                    </div>
-                    <div className="form-control md:col-span-1">
-                        <label className="mb-1 block text-sm font-medium">School Name</label>
-                        <input name="schoolName" className="input input-bordered w-full" placeholder="e.g. City High School" />
-                    </div>
-
-                    {/* School Roll */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">School Roll</label>
-                        <input name="schoolRoll" className="input input-bordered w-full" placeholder="e.g. 5501" />
-                    </div>
-
-                    {/* School Section */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">School Section</label>
-                        <select name="schoolSection" className="select select-bordered w-full" defaultValue="">
-                            <option value="">-- None --</option>
-                            {SECTIONS.map((s) => (
-                                <option key={s} value={s}>
-                                    {s}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Address (full) */}
-                    <div className="form-control md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium">Address</label>
-                        <textarea name="address" className="textarea textarea-bordered w-full" placeholder="House, Road, Area, City" />
-                    </div>
-
-                    {/* Photo (optional) */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Student Photo</label>
-                        <input type="file" accept="image/*" className="file-input file-input-bordered w-full" onChange={onPhotoChange} />
-                        {photoUrl && (
-                            <div className="mt-2">
+        <div className="mx-auto max-w-4xl space-y-6">
+            <Card>
+                <CardContent>
+                    <form className="grid grid-cols-1 gap-4 md:grid-cols-2" action={(fd) => onSubmit(fd)}>
+                        <div className="space-y-2">
+                            <Label htmlFor="name">
+                                Name <span className="text-destructive">*</span>
+                            </Label>
+                            <Input id="name" name="name" required placeholder="Student name" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="batch">
+                                Batch <span className="text-destructive">*</span>
+                            </Label>
+                            {loadingBatches ? (
+                                <Skeleton className="h-9 w-full" />
+                            ) : batches.length ? (
+                                <Select value={batch} onValueChange={(v) => setBatch(v ?? "")}>
+                                    <SelectTrigger id="batch" className="w-full">
+                                        <SelectValue placeholder="-- Select Batch --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {batches.map((b) => (
+                                            <SelectItem key={b._id} value={b.name}>
+                                                {b.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Alert variant="destructive">
+                                    <AlertDescription>No batches found. Create a batch first.</AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="roll">
+                                Roll <span className="text-destructive">*</span>
+                            </Label>
+                            <Input id="roll" name="roll" required placeholder="e.g. 101" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="division">Group</Label>
+                            <Select value={division} onValueChange={(v) => setDivision(v ?? "")}>
+                                <SelectTrigger id="division" className="w-full">
+                                    <SelectValue placeholder="-- None --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {DIVISIONS.map((d) => (
+                                        <SelectItem key={d} value={d}>
+                                            {d}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="birthDate">Birth Date</Label>
+                            <Input id="birthDate" name="birthDate" type="date" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="schoolName">School Name</Label>
+                            <Input id="schoolName" name="schoolName" placeholder="e.g. City High School" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="schoolRoll">School Roll</Label>
+                            <Input id="schoolRoll" name="schoolRoll" placeholder="e.g. 5501" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="schoolSection">School Section</Label>
+                            <Select value={schoolSection} onValueChange={(v) => setSchoolSection(v ?? "")}>
+                                <SelectTrigger id="schoolSection" className="w-full">
+                                    <SelectValue placeholder="-- None --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {SECTIONS.map((s) => (
+                                        <SelectItem key={s} value={s}>
+                                            {s}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor="address">Address</Label>
+                            <Textarea id="address" name="address" placeholder="House, Road, Area, City" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="photo">Student Photo</Label>
+                            <Input id="photo" type="file" accept="image/*" onChange={onPhotoChange} />
+                            {photoUrl && (
                                 <Image
                                     src={photoUrl}
                                     alt="preview"
                                     width={64}
                                     height={64}
-                                    className="mask mask-squircle w-16 h-16 object-cover"
+                                    className="mt-2 size-16 rounded-md object-cover"
+                                />
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="fatherName">Father&apos;s Name</Label>
+                            <Input
+                                id="fatherName"
+                                value={fatherName}
+                                onChange={(e) => setFatherName(e.target.value)}
+                                placeholder="Father's name"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="motherName">Mother&apos;s Name</Label>
+                            <Input
+                                id="motherName"
+                                value={motherName}
+                                onChange={(e) => setMotherName(e.target.value)}
+                                placeholder="Mother's name"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="guardianMode">Guardian</Label>
+                            <Select value={guardianMode} onValueChange={(v) => setGuardianMode(v as typeof guardianMode)}>
+                                <SelectTrigger id="guardianMode" className="w-full">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Father">Father {fatherName ? `(${fatherName})` : ""}</SelectItem>
+                                    <SelectItem value="Mother">Mother {motherName ? `(${motherName})` : ""}</SelectItem>
+                                    <SelectItem value="Custom">Custom</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="guardianPhone">Guardian Phone</Label>
+                            <Input id="guardianPhone" name="guardianPhone" placeholder="01XXXXXXXXX" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="courseFee">Course Fee</Label>
+                            <Input id="courseFee" name="courseFee" type="number" placeholder="Course Fee" />
+                        </div>
+
+                        {guardianMode === "Custom" && (
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="customGuardian">Custom Guardian Name</Label>
+                                <Input
+                                    id="customGuardian"
+                                    value={customGuardian}
+                                    onChange={(e) => setCustomGuardian(e.target.value)}
+                                    placeholder="Guardian name"
                                 />
                             </div>
                         )}
-                    </div>
 
-                    {/* Father's name */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Father&apos;s Name</label>
-                        <input
-                            className="input input-bordered w-full"
-                            value={fatherName}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFatherName(e.target.value)}
-                            placeholder="Father's name"
-                        />
-                    </div>
-
-                    {/* Mother's name */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Mother&apos;s Name</label>
-                        <input
-                            className="input input-bordered w-full"
-                            value={motherName}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMotherName(e.target.value)}
-                            placeholder="Mother's name"
-                        />
-                    </div>
-
-                    {/* Guardian selector */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Guardian</label>
-                        <select
-                            className="select select-bordered w-full"
-                            value={guardianMode}
-                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                                setGuardianMode(e.target.value as "Father" | "Mother" | "Custom")
-                            }
-                        >
-                            <option value="Father">Father {fatherName ? `(${fatherName})` : ""}</option>
-                            <option value="Mother">Mother {motherName ? `(${motherName})` : ""}</option>
-                            <option value="Custom">Custom</option>
-                        </select>
-                    </div>
-
-                    {/* Guardian Phone */}
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Guardian Phone</label>
-                        <input name="guardianPhone" className="input input-bordered w-full" placeholder="01XXXXXXXXX" />
-                    </div>
-                    <div className="form-control">
-                        <label className="mb-1 block text-sm font-medium">Course Fee</label>
-                        <input name="courseFee" className="input input-bordered w-full" placeholder="Course Fee" />
-                    </div>
-
-                    {/* Custom Guardian (only when chosen) */}
-                    {guardianMode === "Custom" && (
-                        <div className="form-control md:col-span-2">
-                            <label className="mb-1 block text-sm font-medium">Custom Guardian Name</label>
-                            <input
-                                className="input input-bordered w-full"
-                                value={customGuardian}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomGuardian(e.target.value)}
-                                placeholder="Guardian name"
-                            />
+                        <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor="guardianNamePreview">Auto-filled Guardian Name</Label>
+                            <Input id="guardianNamePreview" value={guardianName} readOnly />
+                            <p className="text-xs text-muted-foreground">
+                                Typing the father&apos;s/mother&apos;s name or selecting Custom will automatically show here.
+                            </p>
                         </div>
-                    )}
+                        <div className="space-y-2 md:max-w-xs">
+                            <Label htmlFor="gender">Gender</Label>
+                            <Select value={gender} onValueChange={(v) => setGender(v ?? "")}>
+                                <SelectTrigger id="gender" className="w-full">
+                                    <SelectValue placeholder="-- Select --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {GENDERS.map((g) => (
+                                        <SelectItem key={g} value={g}>
+                                            {g}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                    {/* Derived guardian name (read-only) */}
-                    <div className="form-control md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium">Auto-filled Guardian Name</label>
-                        <input className="input input-bordered w-full" value={guardianName} readOnly />
-                        <span className="text-xs opacity-60 mt-1">
-                            Typing the father&apos;s/mother&apos;s name or selecting Custom will automatically show here.
-                        </span>
-                    </div>
+                        {error && (
+                            <Alert variant="destructive" className="md:col-span-2">
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
 
-                    {/* Gender */}
-                    <div className="form-control md:max-w-xs">
-                        <label className="mb-1 block text-sm font-medium">Gender</label>
-                        <select name="gender" className="select select-bordered w-full" defaultValue="">
-                            <option value="">-- Select --</option>
-                            {GENDERS.map((g) => (
-                                <option key={g} value={g}>
-                                    {g}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* actions */}
-                    <div className="md:col-span-2 flex justify-end gap-2">
-                        <a href="/student-list" className="btn btn-ghost">
-                            Cancel
-                        </a>
-                        <button className="btn btn-primary" disabled={saving}>
-                            {saving ? "Saving..." : "Save Student"}
-                        </button>
-                    </div>
-
-                    {msg && <div className="md:col-span-2 text-sm">{msg}</div>}
-                </div>
-            </form>
+                        <div className="flex justify-end gap-2 md:col-span-2">
+                            <Link href="/student-list" className={buttonVariants({ variant: "ghost" })}>
+                                Cancel
+                            </Link>
+                            <Button type="submit" disabled={saving}>
+                                {saving ? "Saving..." : "Save Student"}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 }

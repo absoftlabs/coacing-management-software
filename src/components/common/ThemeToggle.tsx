@@ -1,21 +1,33 @@
 "use client";
 
-import { useTheme } from "@/hook/useTheme";
-import { IconSun, IconMoon } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { IconMoon, IconSun } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
 
 export function ThemeToggle() {
-    const { theme, setTheme } = useTheme("forest");
+    const { resolvedTheme, setTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => setMounted(true), []);
+
+    if (!mounted) {
+        return <Button variant="ghost" size="icon" disabled className="size-9" />;
+    }
+
+    const isDark = resolvedTheme === "dark";
 
     return (
-        <label className="toggle toggle-xl text-base-content">
-            <input type="checkbox"
-                aria-label="Toggle theme"
-                checked={theme === "cupcake"}
-                onChange={() => setTheme(theme === "cupcake" ? "forest" : "cupcake")} />
-
-            <IconMoon size={24} />
-            <IconSun size={24} />
-        </label>
+        <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Toggle theme"
+            className="size-9"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+        >
+            {isDark ? <IconSun className="size-5" /> : <IconMoon className="size-5" />}
+        </Button>
     );
 }
+
 export default ThemeToggle;

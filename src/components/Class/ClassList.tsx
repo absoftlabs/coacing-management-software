@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useState } from "react";
+import { toast } from "sonner";
+import { IconPlus } from "@tabler/icons-react";
+import { DataTable, type DataTableColumn } from "@/components/shared/DataTable";
+import { useConfirm } from "@/components/shared/ConfirmDialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 type Row = {
     _id: string;
@@ -13,85 +20,72 @@ type Row = {
 };
 
 export default function ClassList({ rows }: { rows: Row[] }) {
-    const [q, setQ] = useState("");
     const [data, setData] = useState(rows);
-
-    const filtered = useMemo(() => {
-        if (!q) return data;
-        const s = q.toLowerCase();
-        return data.filter((r) =>
-            (r.name || "").toLowerCase().includes(s) ||
-            (r.code || "").toLowerCase().includes(s) ||
-            (r.teacher || "").toLowerCase().includes(s) ||
-            (r.batch || "").toLowerCase().includes(s)
-        );
-    }, [q, data]);
+    const confirm = useConfirm();
 
     async function onDelete(id: string) {
-        if (!confirm("Delete this class?")) return;
+        const ok = await confirm({
+            title: "Delete this class?",
+            description: "This action cannot be undone.",
+            confirmText: "Delete",
+            variant: "destructive",
+        });
+        if (!ok) return;
         const res = await fetch(`/api/classes/${id}`, { method: "DELETE" });
-        if (res.ok) setData(prev => prev.filter(x => x._id !== id));
-        else alert("Failed to delete");
+        if (res.ok) {
+            setData((prev) => prev.filter((x) => x._id !== id));
+            toast.success("Class deleted");
+        } else toast.error("Failed to delete");
     }
 
-    return (
-        <div className="card bg-base-100 shadow-xl">
-            <div className="card-body">
-                <div className="flex items-center gap-3 justify-between bg-base-200 rounded p-4">
-                    <input
-                        className="input input-bordered w-full max-w-xs"
-                        placeholder="Search by name / code / teacher / batch"
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                    />
-                    <a href="/add-class" className="btn btn-primary">Add Class</a>
+    const columns: DataTableColumn<Row>[] = [
+        { key: "name", header: "Name", cell: (r) => <span className="font-medium">{r.name}</span> },
+        { key: "code", header: "Code", cell: (r) => r.code },
+        { key: "teacher", header: "Teacher", cell: (r) => r.teacher || "-" },
+        { key: "batch", header: "Batch", cell: (r) => r.batch || "-" },
+        { key: "days", header: "Days", className: "whitespace-nowrap", cell: (r) => (r.days || []).join(", ") || "-" },
+        {
+            key: "status",
+            header: "Status",
+            cell: (r) => (
+                <Badge variant={r.isActive ? "default" : "secondary"}>{r.isActive ? "Active" : "Inactive"}</Badge>
+            ),
+        },
+        {
+            key: "actions",
+            header: "",
+            className: "text-right",
+            cell: (r) => (
+                <div className="flex justify-end gap-1.5">
+                    <Link href={`/edit-class/${r._id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                        Edit
+                    </Link>
+                    <Button size="sm" variant="destructive" onClick={() => onDelete(r._id)}>
+                        Delete
+                    </Button>
                 </div>
+            ),
+        },
+    ];
 
-                <div className="overflow-x-auto mt-4">
-                    <table className="table table-zebra">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Code</th>
-                                <th>Teacher</th>
-                                <th>Batch</th>
-                                <th>Days</th>
-                                <th>Status</th>
-                                <th className="text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map((r) => (
-                                <tr key={r._id}>
-                                    <td className="font-medium">{r.name}</td>
-                                    <td>{r.code}</td>
-                                    <td>{r.teacher || "-"}</td>
-                                    <td>{r.batch || "-"}</td>
-                                    <td className="whitespace-nowrap">{(r.days || []).join(", ") || "-"}</td>
-                                    <td>
-                                        <span className={`badge ${r.isActive ? "badge-success" : "badge-ghost"}`}>
-                                            {r.isActive ? "Active" : "Inactive"}
-                                        </span>
-                                    </td>
-                                    <td className="text-right">
-                                        <div className="join">
-                                            <a href={`/edit-class/${r._id}`} className="btn btn-sm join-item">Edit</a>
-                                            <button onClick={() => onDelete(r._id)} className="btn btn-sm btn-outline join-item">
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {!filtered.length && (
-                                <tr>
-                                    <td colSpan={7} className="text-center opacity-60 py-10">No classes</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    return (
+        <DataTable
+            rows={data}
+            rowKey={(r) => r._id}
+            columns={columns}
+            searchPlaceholder="Search by name / code / teacher / batch"
+            filterRow={(r, q) =>
+                (r.name || "").toLowerCase().includes(q) ||
+                (r.code || "").toLowerCase().includes(q) ||
+                (r.teacher || "").toLowerCase().includes(q) ||
+                (r.batch || "").toLowerCase().includes(q)
+            }
+            emptyMessage="No classes"
+            toolbarRight={
+                <Link href="/add-class" className={buttonVariants()}>
+                    <IconPlus /> Add Class
+                </Link>
+            }
+        />
     );
 }

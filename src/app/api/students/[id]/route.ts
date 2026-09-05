@@ -3,7 +3,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { StudentDoc } from "@/lib/types";
 import type { Prisma } from "@prisma/client";
-import { resolveBatchId, prismaDeleteErrorResponse } from "@/lib/dbHelpers";
+import { resolveBatchId, prismaDeleteErrorResponse, prismaUpdateErrorResponse } from "@/lib/dbHelpers";
 
 function toId(id: string): number {
     const n = Number(id);
@@ -49,21 +49,31 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const body = (await req.json().catch(() => null)) as Partial<StudentDoc> | null;
     if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
-    const allowed: (keyof StudentDoc)[] = [
+    const stringFields: (keyof StudentDoc)[] = [
         "name", "roll", "division", "schoolName", "schoolRoll", "schoolSection",
         "address", "fatherName", "motherName", "guardianName", "guardianPhone", "gender",
-        "photoUrl", "isSuspended", "birthDate", "courseFee",
+        "photoUrl", "birthDate",
     ];
 
     const data: Prisma.StudentUpdateInput = {};
 
-    for (const f of allowed) {
-        if (Object.prototype.hasOwnProperty.call(body, f)) {
-            const value = body[f];
-            if (value !== undefined) {
-                (data as Record<string, unknown>)[f] = value;
-            }
+    for (const f of stringFields) {
+        if (Object.prototype.hasOwnProperty.call(body, f) && body[f] !== undefined && body[f] !== null) {
+            (data as Record<string, unknown>)[f] = String(body[f]);
         }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "isSuspended")) {
+        data.isSuspended = body.isSuspended === true || (body.isSuspended as unknown) === "true";
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "courseFee")) {
+        const raw = body.courseFee;
+        const fee = raw === null || raw === undefined || raw === ("" as unknown) ? null : Number(raw);
+        if (fee !== null && isNaN(fee)) {
+            return NextResponse.json({ error: "courseFee must be a number" }, { status: 400 });
+        }
+        data.courseFee = fee;
     }
 
     if (typeof body.batch === "string" && body.batch.trim()) {
@@ -77,8 +87,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
             include: { batch: true },
         });
         return NextResponse.json(serialize(updated));
-    } catch {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    } catch (error) {
+        return prismaUpdateErrorResponse(error);
     }
 }
 

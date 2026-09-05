@@ -1,134 +1,62 @@
 // components/Student/StudentList.tsx
 "use client";
 
-import Image from "next/image";
-import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useState } from "react";
+import { toast } from "sonner";
+import { IconPlus } from "@tabler/icons-react";
+import type { StudentDoc } from "@/lib/types";
+import { DataTable, type DataTableColumn } from "@/components/shared/DataTable";
+import { useConfirm } from "@/components/shared/ConfirmDialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ORG_NAME } from "@/lib/org";
+import { useOrgLogo } from "@/hooks/use-org-logo";
+import { printHtml } from "@/lib/printDocument";
 
-export type Row = {
-    _id: string;
-    studentId: string;
-    name: string;
-    batch: string;
-    roll: string;
-    division?: string;
-    schoolName?: string;
-    schoolRoll?: string;
-    schoolSection?: string;
-    address?: string;
-    fatherName?: string;
-    motherName?: string;
-    guardianName?: string;
-    guardianPhone?: string;
-    gender?: string;
-    photoUrl?: string;      // base64 data URL বা remote url
-    birthDate?: string;
-    courseFee?: number;
-    isSuspended?: boolean;
-    createdAt?: string;
-    updatedAt?: string;
-};
+export type StudentRow = StudentDoc & { _id: string };
 
 type Props = {
-    rows: Row[];
-    /** ব্যাচ ফিল্টার/ড্রপডাউনের জন্য; সাসপেন্ডেড পেজে দরকার নাও হতে পারে */
+    rows: StudentRow[];
+    /** For the batch filter dropdown; not needed on the suspended page */
     batches?: string[];
-    /** সত্য হলে কেবল suspended স্টুডেন্ট দেখাবো */
+    /** When true, only show suspended students */
     suspendedOnly?: boolean;
 };
 
-export default function StudentList({
-    rows,
-    batches = [],
-    suspendedOnly = false,
-}: Props) {
-    const [q, setQ] = useState("");
-    const [batch, setBatch] = useState("");
-    const [roll, setRoll] = useState("");
-    const [data, setData] = useState<Row[]>(rows);
+function initials(name: string) {
+    return name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase())
+        .join("");
+}
 
-    // view modal
-    const dialogRef = useRef<HTMLDialogElement | null>(null);
-    const [view, setView] = useState<Row | null>(null);
-
-    const filtered = useMemo(() => {
-        const s = q.toLowerCase();
-        let out = data.filter((r) => {
-            const okQ =
-                !q ||
-                r.name.toLowerCase().includes(s) ||
-                r.studentId.toLowerCase().includes(s) ||
-                r.batch.toLowerCase().includes(s) ||
-                r.roll.toLowerCase().includes(s) ||
-                (r.guardianName || "").toLowerCase().includes(s) ||
-                (r.guardianPhone || "").toLowerCase().includes(s);
-
-            const okB = !batch || r.batch === batch;
-            const okR = !roll || r.roll === roll;
-            return okQ && okB && okR;
-        });
-
-        // suspendedOnly হলে কেবল suspended এন্ট্রি দেখাই,
-        // নাহলে active গুলো দেখাই (suspended বাদ)
-        out = out.filter((r) =>
-            suspendedOnly ? r.isSuspended === true : r.isSuspended !== true
-        );
-
-        return out;
-    }, [q, batch, roll, data, suspendedOnly]);
-
-    async function onDelete(id: string) {
-        if (!confirm("Delete student?")) return;
-        const res = await fetch(`/api/students/${id}`, { method: "DELETE" });
-        if (res.ok) setData((prev) => prev.filter((x) => x._id !== id));
-        else alert("Delete failed");
-    }
-
-    async function onSuspend(id: string) {
-        const confirmText = suspendedOnly ? "Re-admit this student?" : "Suspend this student?";
-        if (!confirm(confirmText)) return;
-
-        const flag = !suspendedOnly; // suspended পেজে -> re-admit (false), else -> suspend (true)
-        const res = await fetch(`/api/students/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ isSuspended: flag }),
-        });
-
-        if (res.ok) {
-            setData((prev) =>
-                prev.map((x) => (x._id === id ? { ...x, isSuspended: flag } : x))
-            );
-        } else {
-            alert("Action failed");
-        }
-    }
-
-    function openView(item: Row) {
-        setView(item);
-        dialogRef.current?.showModal();
-    }
-    function closeView() {
-        dialogRef.current?.close();
-        setView(null);
-    }
-
-    function printView() {
-        if (!view) return;
-        const win = window.open("", "PRINT", "height=650,width=900,top=100,left=150");
-        if (!win) return;
-
-        const styles = `
-  <style>
-    body { font-family: ui-sans-serif, system-ui, -apple-system; padding: 24px; }
+function studentPrintHtml(view: StudentRow, logoUrl: string) {
+    const styles = `
     .card { border:1px solid #e5e7eb; border-radius:12px; padding:20px; }
-    /* === Coaching Header === */
     .org { display:flex; align-items:center; gap:16px; margin-bottom:16px; background:#f9fafb; padding:12px 20px; border-radius:12px; }
     .org-logo { width:64px; height:64px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb; }
     .org-meta { display:flex; flex-direction:column; gap:2px; }
     .org-name { font-size:18px; font-weight:700; }
     .org-line { font-size:13px; color:#374151; }
     .muted { color:#6b7280 }
-    /* === Student Header & Grid === */
     .header { display:flex; gap:16px; align-items:center; margin-bottom:16px; }
     .avatar { width:80px; height:80px; border-radius:12px; object-fit:cover; border:1px solid #e5e7eb; }
     .title { font-size:20px; font-weight:600; }
@@ -137,36 +65,21 @@ export default function StudentList({
     .row { display:flex; gap:8px; }
     .label { width:160px; color:#6b7280; }
     .val { font-weight:500; }
-    @media print { .no-print { display:none } }
-  </style>
-`;
+  `;
 
-        // প্রতিষ্ঠান তথ্য (ইচ্ছা করলে settings থেকে আসবে)
-        const logoUrl = "https://i.ibb.co.com/cXwWBJCC/logo2.png"; // public/logo2.png (স্ট্যাটিক)
-        const ORG_NAME = "Prottasha Coaching Center";
-        const ORG_PLACE = "Address: Cheradanghi Mor, Auliapur, Sadar, Dinajpur";
-        const ORG_EST = "Established: 2018";
-        const ORG_MOBILE = "Mobile: 01798930232, 01898930232";
+    const img = view.photoUrl
+        ? `<img src="${view.photoUrl}" class="avatar" />`
+        : `<div class="avatar" style="display:flex;align-items:center;justify-content:center;background:#f3f4f6;color:#9ca3af;">No Photo</div>`;
 
-        const img = view.photoUrl
-            ? `<img src="${view.photoUrl}" class="avatar" />`
-            : `<div class="avatar" style="display:flex;align-items:center;justify-content:center;background:#f3f4f6;color:#9ca3af;">No Photo</div>`;
-
-        const html = `
-<html>
-  <head>
-    <title>${view.name} - ${view.studentId}</title>
-    ${styles}
-  </head>
-  <body onload="window.print();window.close()">
+    const body = `
     <div class="card">
       <div class="org">
         <img src="${logoUrl}" alt="Coaching Logo" class="org-logo" />
         <div class="org-meta">
           <div class="org-name">${ORG_NAME}</div>
-          <div class="org-line">${ORG_PLACE}</div>
-          <div class="org-line">${ORG_EST}</div>
-          <div class="org-line">${ORG_MOBILE}</div>
+          <div class="org-line">Address: Cheradanghi Mor, Auliapur, Sadar, Dinajpur</div>
+          <div class="org-line">Established: 2018</div>
+          <div class="org-line">Mobile: 01798930232, 01898930232</div>
         </div>
       </div>
 
@@ -195,169 +108,152 @@ export default function StudentList({
         <div class="row"><div class="label">Guardian Phone</div><div class="val">${view.guardianPhone || "-"}</div></div>
       </div>
     </div>
-  </body>
-</html>
-`;
-        win.document.write(html);
-        win.document.close();
+  `;
+
+    printHtml(`${view.name} - ${view.studentId}`, body, styles);
+}
+
+export default function StudentList({ rows, batches = [], suspendedOnly = false }: Props) {
+    const logo = useOrgLogo();
+    const [data, setData] = useState<StudentRow[]>(rows);
+    const [batch, setBatch] = useState<string>("all");
+    const [roll, setRoll] = useState("");
+    const [view, setView] = useState<StudentRow | null>(null);
+    const confirm = useConfirm();
+
+    const scoped = data
+        .filter((r) => (suspendedOnly ? r.isSuspended === true : r.isSuspended !== true))
+        .filter((r) => batch === "all" || r.batch === batch)
+        .filter((r) => !roll || r.roll === roll);
+
+    async function onDelete(id: string) {
+        const ok = await confirm({
+            title: "Delete this student?",
+            description: "This action cannot be undone.",
+            confirmText: "Delete",
+            variant: "destructive",
+        });
+        if (!ok) return;
+        const res = await fetch(`/api/students/${id}`, { method: "DELETE" });
+        if (res.ok) {
+            setData((prev) => prev.filter((x) => x._id !== id));
+            toast.success("Student deleted");
+        } else toast.error("Delete failed");
     }
+
+    async function onSuspend(id: string) {
+        const flag = !suspendedOnly;
+        const ok = await confirm({ title: flag ? "Suspend this student?" : "Re-admit this student?" });
+        if (!ok) return;
+        const res = await fetch(`/api/students/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isSuspended: flag }),
+        });
+        if (res.ok) {
+            setData((prev) => prev.map((x) => (x._id === id ? { ...x, isSuspended: flag } : x)));
+            toast.success(flag ? "Student suspended" : "Student re-admitted");
+        } else toast.error("Action failed");
+    }
+
+    const columns: DataTableColumn<StudentRow>[] = [
+        {
+            key: "photo",
+            header: "",
+            cell: (r) => (
+                <Avatar className="size-9 rounded-md">
+                    <AvatarImage src={r.photoUrl} alt={r.name} />
+                    <AvatarFallback className="rounded-md">{initials(r.name)}</AvatarFallback>
+                </Avatar>
+            ),
+        },
+        { key: "studentId", header: "Student ID", cell: (r) => <span className="font-mono text-xs">{r.studentId}</span> },
+        { key: "name", header: "Name", cell: (r) => r.name },
+        { key: "batch", header: "Batch", cell: (r) => r.batch },
+        { key: "roll", header: "Roll", cell: (r) => r.roll },
+        { key: "division", header: "Division", cell: (r) => r.division || "-" },
+        {
+            key: "actions",
+            header: "",
+            className: "text-right",
+            cell: (r) => (
+                <div className="flex justify-end gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => setView(r)}>
+                        View
+                    </Button>
+                    <Link href={`/edit-student/${r._id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                        Edit
+                    </Link>
+                    <Button size="sm" variant={suspendedOnly ? "default" : "secondary"} onClick={() => onSuspend(r._id)}>
+                        {suspendedOnly ? "Re-admit" : "Suspend"}
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => onDelete(r._id)}>
+                        Delete
+                    </Button>
+                </div>
+            ),
+        },
+    ];
 
     return (
         <>
-            <div className="card bg-base-100 shadow-xl">
-                <div className="card-body">
-                    <div className="flex items-center gap-3 justify-between bg-base-200 rounded p-4">
-                        <div className="flex justify-around w-full gap-3">
-                            <input
-                                className="input input-bordered"
-                                placeholder="Search (name / id / batch / roll / phone)"
-                                value={q}
-                                onChange={(e) => setQ(e.target.value)}
-                            />
-                            <select
-                                className="select select-bordered"
-                                value={batch}
-                                onChange={(e) => setBatch(e.target.value)}
-                            >
-                                <option value="">All Batches</option>
-                                {batches.map((b) => (
-                                    <option key={b} value={b}>
-                                        {b}
-                                    </option>
-                                ))}
-                            </select>
-                            <input
-                                className="input input-bordered w-32"
-                                placeholder="Roll"
-                                value={roll}
-                                onChange={(e) => setRoll(e.target.value)}
-                            />
-                        </div>
-                        <a href="/add-student" className="btn btn-primary">
-                            Add Student
-                        </a>
-                    </div>
-
-                    <div className="overflow-x-auto mt-4">
-                        <table className="table table-zebra">
-                            <thead>
-                                <tr>
-                                    <th>Photo</th>
-                                    <th>SL</th>
-                                    <th>Student ID</th>
-                                    <th>Name</th>
-                                    <th>Batch</th>
-                                    <th>Roll</th>
-                                    <th>Division</th>
-                                    <th className="text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map((r, i) => (
-                                    <tr key={r._id}>
-                                        <td>
-                                            {r.photoUrl ? (
-                                                <Image
-                                                    src={r.photoUrl}
-                                                    alt={r.name}
-                                                    width={48}
-                                                    height={48}
-                                                    className="mask mask-squircle w-12 h-12 object-cover"
-                                                    // data URL/unauthorized domain হলে অপ্টিমাইজেশন দরকার নেই
-                                                    unoptimized
-                                                />
-                                            ) : (
-                                                <div className="mask mask-squircle w-12 h-12 bg-base-200 flex items-center justify-center text-xs text-base-content/50">
-                                                    No Pic
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td>{i + 1}</td>
-                                        <td className="font-mono">{r.studentId}</td>
-                                        <td>{r.name}</td>
-                                        <td>{r.batch}</td>
-                                        <td>{r.roll}</td>
-                                        <td>{r.division || "-"}</td>
-                                        <td className="text-right">
-                                            <div className="join">
-                                                <button
-                                                    onClick={() => openView(r)}
-                                                    className="btn btn-sm join-item"
-                                                >
-                                                    View
-                                                </button>
-                                                <a
-                                                    href={`/edit-student/${r._id}`}
-                                                    className="btn btn-sm join-item"
-                                                >
-                                                    Edit
-                                                </a>
-
-                                                {/* suspendedOnly অনুযায়ী বাটন পাল্টাবে */}
-                                                {suspendedOnly ? (
-                                                    <button
-                                                        onClick={() => onSuspend(r._id)}
-                                                        className="btn btn-sm btn-accent join-item"
-                                                    >
-                                                        Re-admit
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => onSuspend(r._id)}
-                                                        className="btn btn-sm btn-warning join-item"
-                                                    >
-                                                        Suspend
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    onClick={() => onDelete(r._id)}
-                                                    className="btn btn-sm btn-outline join-item"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {!filtered.length && (
-                                    <tr>
-                                        <td colSpan={8} className="text-center opacity-60 py-10">
-                                            No students
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {/* View Modal */}
-            <dialog ref={dialogRef} className="modal">
-                <div className="modal-box max-w-3xl">
-                    <div className="flex items-start gap-4">
-                        {view?.photoUrl ? (
-                            <Image
-                                src={view.photoUrl}
-                                alt="Student Photo"
-                                width={80}
-                                height={80}
-                                className="mask mask-squircle w-20 h-20 object-cover"
-                                unoptimized
-                            />
-                        ) : (
-                            <div className="mask mask-squircle w-20 h-20 bg-base-200 flex items-center justify-center text-xs text-base-content/50">
-                                No Pic
-                            </div>
+            <DataTable
+                rows={scoped}
+                rowKey={(r) => r._id}
+                columns={columns}
+                searchPlaceholder="Search (name / id / batch / roll / phone)"
+                filterRow={(r, q) =>
+                    r.name.toLowerCase().includes(q) ||
+                    r.studentId.toLowerCase().includes(q) ||
+                    r.batch.toLowerCase().includes(q) ||
+                    r.roll.toLowerCase().includes(q) ||
+                    (r.guardianName || "").toLowerCase().includes(q) ||
+                    (r.guardianPhone || "").toLowerCase().includes(q)
+                }
+                emptyMessage={suspendedOnly ? "No suspended students" : "No students"}
+                toolbarRight={
+                    <div className="flex flex-wrap items-center gap-2">
+                        {batches.length > 0 && (
+                            <Select value={batch} onValueChange={(v) => setBatch(v ?? "all")}>
+                                <SelectTrigger className="w-40">
+                                    <SelectValue placeholder="All Batches" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Batches</SelectItem>
+                                    {batches.map((b) => (
+                                        <SelectItem key={b} value={b}>
+                                            {b}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         )}
-                        <div>
-                            <h3 className="font-bold text-lg">{view?.name}</h3>
-                            <div className="text-sm opacity-70 font-mono">{view?.studentId}</div>
-                        </div>
+                        <Input className="w-28" placeholder="Roll" value={roll} onChange={(e) => setRoll(e.target.value)} />
+                        {!suspendedOnly && (
+                            <Link href="/add-student" className={buttonVariants()}>
+                                <IconPlus /> Add Student
+                            </Link>
+                        )}
                     </div>
+                }
+            />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <Dialog open={!!view} onOpenChange={(open) => !open && setView(null)}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <div className="flex items-start gap-4">
+                            <Avatar className="size-16 rounded-md">
+                                <AvatarImage src={view?.photoUrl} alt={view?.name} />
+                                <AvatarFallback className="rounded-md">{view ? initials(view.name) : ""}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <DialogTitle>{view?.name}</DialogTitle>
+                                <div className="font-mono text-sm text-muted-foreground">{view?.studentId}</div>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <Field label="Batch" value={view?.batch} />
                         <Field label="Roll" value={view?.roll} />
                         <Field label="Division" value={view?.division} />
@@ -372,27 +268,22 @@ export default function StudentList({
                         <Field label="Guardian Phone" value={view?.guardianPhone} />
                     </div>
 
-                    <div className="modal-action">
-                        <button className="btn btn-ghost" onClick={closeView}>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setView(null)}>
                             Close
-                        </button>
-                        <button className="btn btn-primary" onClick={printView}>
-                            Print
-                        </button>
-                    </div>
-                </div>
-                <form method="dialog" className="modal-backdrop">
-                    <button>close</button>
-                </form>
-            </dialog>
+                        </Button>
+                        <Button onClick={() => view && studentPrintHtml(view, logo)}>Print</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
 
 function Field({ label, value }: { label: string; value?: string }) {
     return (
-        <div className="flex gap-2">
-            <div className="text-sm opacity-60 w-40">{label}</div>
+        <div className="flex gap-2 text-sm">
+            <div className="w-40 text-muted-foreground">{label}</div>
             <div className="font-medium">{value || "-"}</div>
         </div>
     );

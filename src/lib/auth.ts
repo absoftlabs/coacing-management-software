@@ -6,9 +6,10 @@ const TOKEN_TTL = "7d";
 
 export type AuthPayload = {
     sub: string;
-    role: "admin";
-    email: string;
+    role: "admin" | "teacher";
+    email?: string;
     username: string;
+    teacherId?: number;
 };
 
 function getSecretKey(): Uint8Array {

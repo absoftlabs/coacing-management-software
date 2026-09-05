@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { findStudentByCode, prismaDeleteErrorResponse } from "@/lib/dbHelpers";
+import { findStudentByCode, prismaDeleteErrorResponse, prismaUpdateErrorResponse } from "@/lib/dbHelpers";
 
 function toId(id: string): number {
     const n = Number(id);
@@ -83,8 +83,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
             include: { student: { select: { studentId: true } } },
         });
         return NextResponse.json(serialize(updated));
-    } catch {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    } catch (error) {
+        return prismaUpdateErrorResponse(error);
     }
 }
 

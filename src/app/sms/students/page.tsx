@@ -2,6 +2,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { ORG_NAME } from "@/lib/org";
 
 type BatchRow = { _id: string; name: string };
 type TemplateRow = {
@@ -52,9 +74,11 @@ type SmsLogRow = {
     phone: string;
     status: "sent" | "failed" | string;
     providerId?: string;
-    sentAt: string; // ISO
+    sentAt: string;
     error?: string;
 };
+
+const RESULT_TYPES = ["Class Test", "Weekly Test", "Quiz Test", "Model Test", "Custom"];
 
 export default function StudentSmsPage() {
     const [batches, setBatches] = useState<BatchRow[]>([]);
@@ -63,30 +87,23 @@ export default function StudentSmsPage() {
     const [results, setResults] = useState<ResultRow[]>([]);
 
     const [batch, setBatch] = useState<string>("");
-    const [studentId, setStudentId] = useState<string>("");
+    const [studentId, setStudentId] = useState<string>("all");
     const [qStudent, setQStudent] = useState<string>("");
     const [templateId, setTemplateId] = useState<string>("");
     const [resultType, setResultType] = useState<string>("");
     const [resultId, setResultId] = useState<string>("");
     const [sending, setSending] = useState(false);
-    const [msg, setMsg] = useState<string>("");
 
-    // logs
     const [logs, setLogs] = useState<SmsLogRow[]>([]);
-    const [logQuery, setLogQuery] = useState<string>(""); // search in preview/phone/studentId
+    const [logQuery, setLogQuery] = useState<string>("");
     const [loadingLogs, setLoadingLogs] = useState(false);
 
-    // initial data
     useEffect(() => {
         (async () => {
             try {
                 const [b, t] = await Promise.all([
-                    fetch("/api/batches", { cache: "no-store" }).then((r) =>
-                        r.json() as Promise<BatchRow[]>
-                    ),
-                    fetch("/api/sms/templates", { cache: "no-store" }).then((r) =>
-                        r.json() as Promise<TemplateRow[]>
-                    ),
+                    fetch("/api/batches", { cache: "no-store" }).then((r) => r.json() as Promise<BatchRow[]>),
+                    fetch("/api/sms/templates", { cache: "no-store" }).then((r) => r.json() as Promise<TemplateRow[]>),
                 ]);
                 setBatches(b);
                 setTemplates(t);
@@ -97,7 +114,6 @@ export default function StudentSmsPage() {
         })();
     }, []);
 
-    // students in batch (searchable)
     useEffect(() => {
         if (!batch) {
             setStudents([]);
@@ -106,13 +122,9 @@ export default function StudentSmsPage() {
         (async () => {
             try {
                 const url = qStudent
-                    ? `/api/students?q=${encodeURIComponent(qStudent)}&batch=${encodeURIComponent(
-                        batch
-                    )}`
+                    ? `/api/students?q=${encodeURIComponent(qStudent)}&batch=${encodeURIComponent(batch)}`
                     : `/api/students?batch=${encodeURIComponent(batch)}`;
-                const st = await fetch(url, { cache: "no-store" }).then(
-                    (r) => r.json() as Promise<StudentRow[]>
-                );
+                const st = await fetch(url, { cache: "no-store" }).then((r) => r.json() as Promise<StudentRow[]>);
                 setStudents(st);
             } catch {
                 setStudents([]);
@@ -120,7 +132,6 @@ export default function StudentSmsPage() {
         })();
     }, [batch, qStudent]);
 
-    // results based on batch, resultType, optional student
     useEffect(() => {
         if (!batch || !resultType) {
             setResults([]);
@@ -131,10 +142,8 @@ export default function StudentSmsPage() {
                 const url = new URL("/api/results", location.origin);
                 url.searchParams.set("batch", batch);
                 url.searchParams.set("resultType", resultType);
-                if (studentId) url.searchParams.set("studentId", studentId);
-                const data = await fetch(url.toString(), { cache: "no-store" }).then(
-                    (r) => r.json() as Promise<ResultRow[]>
-                );
+                if (studentId !== "all") url.searchParams.set("studentId", studentId);
+                const data = await fetch(url.toString(), { cache: "no-store" }).then((r) => r.json() as Promise<ResultRow[]>);
                 setResults(data.slice(0, 20));
             } catch {
                 setResults([]);
@@ -142,25 +151,21 @@ export default function StudentSmsPage() {
         })();
     }, [batch, resultType, studentId]);
 
-    const studentsInBatch = useMemo(
-        () => students.filter((s) => s.batch === batch),
-        [students, batch]
-    );
+    const studentsInBatch = useMemo(() => students.filter((s) => s.batch === batch), [students, batch]);
 
     async function send() {
         setSending(true);
-        setMsg("");
         try {
             if (!batch || !templateId || !resultId) {
-                setMsg("Select batch, template and result.");
+                toast.error("Select batch, template and result.");
                 return;
             }
             const payload = {
                 batchId: batch,
-                studentId: studentId || undefined,
+                studentId: studentId === "all" ? undefined : studentId,
                 templateId,
                 resultId,
-                coachingName: "Prottasha Coaching Center",
+                coachingName: ORG_NAME,
             };
             const res = await fetch("/api/sms/send/student", {
                 method: "POST",
@@ -168,11 +173,11 @@ export default function StudentSmsPage() {
                 body: JSON.stringify(payload),
             });
             if (res.ok) {
-                setMsg("✅ Sent");
-                await loadLogs(); // refresh logs after send
+                toast.success("Sent");
+                await loadLogs();
             } else {
                 const j = (await res.json().catch(() => ({}))) as { error?: string };
-                setMsg("❌ " + (j.error ?? "Failed to send"));
+                toast.error(j.error ?? "Failed to send");
             }
         } finally {
             setSending(false);
@@ -184,11 +189,8 @@ export default function StudentSmsPage() {
         try {
             const url = new URL("/api/sms/logs", location.origin);
             url.searchParams.set("audience", "student");
-            // optionally filter by current batch
             if (batch) url.searchParams.set("batchId", batch);
-            const list = await fetch(url.toString(), { cache: "no-store" }).then(
-                (r) => r.json() as Promise<SmsLogRow[]>
-            );
+            const list = await fetch(url.toString(), { cache: "no-store" }).then((r) => r.json() as Promise<SmsLogRow[]>);
             setLogs(list);
         } catch {
             setLogs([]);
@@ -198,230 +200,194 @@ export default function StudentSmsPage() {
     }
 
     useEffect(() => {
-        loadLogs(); // initial load
+        loadLogs();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const filteredLogs = useMemo(() => {
         const s = logQuery.trim().toLowerCase();
-        if (!s) {
-            return logs;
-        }
-        return logs.filter((l) => {
-            return (
+        if (!s) return logs;
+        return logs.filter(
+            (l) =>
                 (l.preview ?? "").toLowerCase().includes(s) ||
                 (l.phone ?? "").toLowerCase().includes(s) ||
                 (l.studentId ?? "").toLowerCase().includes(s) ||
                 (l.batchId ?? "").toLowerCase().includes(s) ||
                 (l.status ?? "").toLowerCase().includes(s)
-            );
-        });
+        );
     }, [logs, logQuery]);
 
     return (
-        <div className="card bg-base-100 shadow-xl">
-            <div className="card-body space-y-6">
-                <h2 className="card-title">Send SMS to Students / Guardians</h2>
+        <Card>
+            <CardContent className="space-y-6">
+                <h2 className="text-lg font-semibold">Send SMS to Students / Guardians</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {/* Batch */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Batch *</span>
-                        </label>
-                        <select
-                            className="select select-bordered rounded-full ps-5"
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <div className="space-y-2">
+                        <Label>Batch *</Label>
+                        <Select
                             value={batch}
-                            onChange={(e) => {
-                                setBatch(e.target.value);
-                                setStudentId("");
+                            onValueChange={(v) => {
+                                setBatch(v ?? "");
+                                setStudentId("all");
                                 setResultId("");
                             }}
                         >
-                            <option value="">-- Select Batch --</option>
-                            {batches.map((b) => (
-                                <option key={b._id} value={b.name}>
-                                    {b.name}
-                                </option>
-                            ))}
-                        </select>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="-- Select Batch --" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {batches.map((b) => (
+                                    <SelectItem key={b._id} value={b.name}>
+                                        {b.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    {/* Template */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">SMS Template *</span>
-                        </label>
-                        <select
-                            className="select select-bordered rounded-full ps-5"
-                            value={templateId}
-                            onChange={(e) => setTemplateId(e.target.value)}
-                        >
-                            <option value="">-- Select Template --</option>
-                            {templates.map((t) => (
-                                <option key={t._id} value={t._id}>
-                                    {t.templateName}
-                                </option>
-                            ))}
-                        </select>
+                    <div className="space-y-2">
+                        <Label>SMS Template *</Label>
+                        <Select value={templateId} onValueChange={(v) => setTemplateId(v ?? "")}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="-- Select Template --" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {templates.map((t) => (
+                                    <SelectItem key={t._id} value={t._id}>
+                                        {t.templateName}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    {/* Student search + pick */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Student (Optional)</span>
-                        </label>
-                        <div className="join w-full">
-                            <input
-                                className="input input-bordered rounded-full join-item w-full"
-                                placeholder="Search by name or ID"
-                                value={qStudent}
-                                onChange={(e) => setQStudent(e.target.value)}
-                            />
-                            <select
-                                className="select select-bordered rounded-full join-item ps-5"
+                    <div className="space-y-2">
+                        <Label>Student (Optional)</Label>
+                        <div className="flex gap-2">
+                            <Input placeholder="Search by name or ID" value={qStudent} onChange={(e) => setQStudent(e.target.value)} />
+                            <Select
                                 value={studentId}
-                                onChange={(e) => {
-                                    setStudentId(e.target.value);
+                                onValueChange={(v) => {
+                                    setStudentId(v ?? "all");
                                     setResultId("");
                                 }}
                             >
-                                <option value="">All in Batch</option>
-                                {studentsInBatch.map((s) => (
-                                    <option key={s._id} value={s.studentId}>
-                                        {s.name} ({s.studentId})
-                                    </option>
-                                ))}
-                            </select>
+                                <SelectTrigger className="w-40">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All in Batch</SelectItem>
+                                    {studentsInBatch.map((s) => (
+                                        <SelectItem key={s._id} value={s.studentId}>
+                                            {s.name} ({s.studentId})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-                        <small className="opacity-60">
-                            Leave blank to send to all guardians in the selected batch.
-                        </small>
+                        <p className="text-xs text-muted-foreground">Leave blank to send to all guardians in the selected batch.</p>
                     </div>
 
-                    {/* Result type */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Result Type *</span>
-                        </label>
-                        <select
-                            className="select select-bordered rounded-full ps-5"
+                    <div className="space-y-2">
+                        <Label>Result Type *</Label>
+                        <Select
                             value={resultType}
-                            onChange={(e) => {
-                                setResultType(e.target.value);
+                            onValueChange={(v) => {
+                                setResultType(v ?? "");
                                 setResultId("");
                             }}
                         >
-                            <option value="">-- Select --</option>
-                            <option value="Class Test">Class Test</option>
-                            <option value="Weekly Test">Weekly Test</option>
-                            <option value="Quiz Test">Quiz Test</option>
-                            <option value="Model Test">Model Test</option>
-                            <option value="Custom">Custom</option>
-                        </select>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="-- Select --" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {RESULT_TYPES.map((rt) => (
+                                    <SelectItem key={rt} value={rt}>
+                                        {rt}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    {/* Result pick */}
-                    <div className="form-control">
-                        <label className="label">
-                            <span className="label-text">Select Result *</span>
-                        </label>
-                        <select
-                            className="select select-bordered rounded-full ps-5"
-                            value={resultId}
-                            onChange={(e) => setResultId(e.target.value)}
-                        >
-                            <option value="">-- Select Result --</option>
-                            {results.map((r) => (
-                                <option key={r._id} value={r._id}>
-                                    {r.studentName ? `${r.studentName} – ` : ""}
-                                    {r.resultType} – {r.examDate ?? "-"}
-                                </option>
-                            ))}
-                        </select>
-                        <small className="opacity-60">
-                            Shows recent results filtered by batch/student/type.
-                        </small>
+                    <div className="space-y-2 md:col-span-2">
+                        <Label>Select Result *</Label>
+                        <Select value={resultId} onValueChange={(v) => setResultId(v ?? "")}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="-- Select Result --" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {results.map((r) => (
+                                    <SelectItem key={r._id} value={r._id}>
+                                        {r.studentName ? `${r.studentName} – ` : ""}
+                                        {r.resultType} – {r.examDate ?? "-"}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">Shows recent results filtered by batch/student/type.</p>
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
-                    <button
-                        className="btn btn-primary rounded-full"
-                        onClick={send}
-                        disabled={sending}
-                    >
+                <div className="flex justify-end">
+                    <Button onClick={send} disabled={sending}>
                         {sending ? "Sending..." : "Send"}
-                    </button>
+                    </Button>
                 </div>
 
-                {msg && <div className="text-sm">{msg}</div>}
-
-                {/* SMS LOG TABLE */}
-                <div className="mt-6">
-                    <div className="flex items-end justify-between gap-3 flex-col md:flex-row">
+                <div className="space-y-3">
+                    <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-end">
                         <h3 className="text-lg font-semibold">SMS Log (Students)</h3>
-                        <div className="flex gap-2 items-center">
-                            <input
-                                className="input input-bordered rounded-full"
+                        <div className="flex items-center gap-2">
+                            <Input
                                 placeholder="Search logs (text / phone / student / batch)"
                                 value={logQuery}
                                 onChange={(e) => setLogQuery(e.target.value)}
                             />
-                            <button
-                                className="btn btn-outline rounded-full"
-                                onClick={loadLogs}
-                                disabled={loadingLogs}
-                            >
+                            <Button variant="outline" onClick={loadLogs} disabled={loadingLogs}>
                                 {loadingLogs ? "Refreshing..." : "Refresh"}
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto mt-3">
-                        <table className="table table-zebra">
-                            <thead>
-                                <tr>
-                                    <th>When</th>
-                                    <th>Batch</th>
-                                    <th>Student</th>
-                                    <th>Phone</th>
-                                    <th>Status</th>
-                                    <th>Preview</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                    <div className="overflow-x-auto rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>When</TableHead>
+                                    <TableHead>Batch</TableHead>
+                                    <TableHead>Student</TableHead>
+                                    <TableHead>Phone</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Preview</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {filteredLogs.map((l) => (
-                                    <tr key={l._id}>
-                                        <td>{new Date(l.sentAt).toLocaleString()}</td>
-                                        <td>{l.batchId ?? "-"}</td>
-                                        <td>{l.studentId ?? "-"}</td>
-                                        <td className="font-mono">{l.phone}</td>
-                                        <td>
-                                            <span
-                                                className={`badge ${l.status === "sent" ? "badge-success" : "badge-error"} text-white`}
-                                            >
-                                                {l.status}
-                                            </span>
-                                        </td>
-                                        <td className="max-w-[520px] whitespace-normal">
-                                            {l.preview}
-                                        </td>
-                                    </tr>
+                                    <TableRow key={l._id}>
+                                        <TableCell>{new Date(l.sentAt).toLocaleString()}</TableCell>
+                                        <TableCell>{l.batchId ?? "-"}</TableCell>
+                                        <TableCell>{l.studentId ?? "-"}</TableCell>
+                                        <TableCell className="font-mono">{l.phone}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={l.status === "sent" ? "default" : "destructive"}>{l.status}</Badge>
+                                        </TableCell>
+                                        <TableCell className="max-w-[520px] whitespace-normal">{l.preview}</TableCell>
+                                    </TableRow>
                                 ))}
                                 {!filteredLogs.length && (
-                                    <tr>
-                                        <td colSpan={6} className="py-10 text-center opacity-60">
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                                             No logs
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 )}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 </div>
-                {/* /LOG TABLE */}
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     );
 }
